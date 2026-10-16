@@ -1,0 +1,54 @@
+export component MainWindow inherits Window {
+    width: 400px;
+    height: 400px;
+    title: "membuat MINI SCADA HMI";
+    background: #FF96C5;
+
+    // dikirim ke Rust (setara backend.button1(...) di QML)
+    callback button1(string);
+
+    // setara button1.checked di QML (checkable : true)
+    in-out property <bool> button1-checked: false;
+    property <color> button1-color: #340040;
+
+    // Button1
+    Rectangle {
+        x: 150px;
+        y: 150px;
+        width: 90px;
+        height: 90px;
+        background: root.button1-color;
+
+        Text {
+            x: 10px;
+            y: 10px;
+            text: "button1";
+            font-size: 15px;
+            color: black;
+        }
+
+        // tombol bisa diklik: toggle checked (setara checkable : true)
+        TouchArea {
+            clicked => {
+                root.button1-checked = !root.button1-checked;
+            }
+        }
+    }
+
+    // guitimer
+    Timer {
+        interval: 200ms;
+        running: true;
+        triggered => {
+            if (root.button1-checked == true) {
+                root.button1-color = #F2055C;
+                root.button1("1");
+            }
+
+            if (root.button1-checked == false) {
+                root.button1-color = #340040;
+                root.button1("0");
+            }
+        }
+    }
+}

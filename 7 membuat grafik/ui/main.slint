@@ -1,0 +1,44 @@
+import { Button } from "std-widgets.slint";
+
+export component MainWindow inherits Window {
+    title: "Plot Random";
+    width: 800px;
+    height: 500px;
+
+    in property <string> commands;
+    callback regenerate();
+
+    VerticalLayout {
+        padding: 16px;
+        spacing: 12px;
+
+        Rectangle {
+            background: #1e1e2e;
+            border-radius: 8px;
+            clip: true;
+
+            // garis tengah (referensi)
+            Rectangle {
+                y: parent.height / 2;
+                height: 1px;
+                background: #45475a;
+            }
+
+            Path {
+                width: parent.width;
+                height: parent.height;
+                viewbox-width: 1000;
+                viewbox-height: 400;
+                commands: root.commands;
+                stroke: #89b4fa;
+                stroke-width: 2px;
+                fill: transparent;
+            }
+        }
+
+        Button {
+            text: "Generate data baru";
+            clicked => { root.regenerate(); }
+        }
+    }
+}

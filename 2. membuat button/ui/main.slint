@@ -1,0 +1,49 @@
+import { Button } from "std-widgets.slint";
+
+export component MainWindow inherits Window {
+    width: 400px;
+    height: 400px;
+    title: "membuat button";
+    background: #FF96C5;
+
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: red;
+
+        Rectangle {
+            y: parent.height - parent.height / 10;
+            width: parent.width;
+            height: parent.height / 10;
+            background: pink;
+        }
+    }
+
+    Text {
+        y: 140px;
+        width: parent.width;
+        horizontal-alignment: center;
+        text: "button";
+        color: white;
+        font-size: 24px;
+    }
+
+    Rectangle {
+		width: 140px;
+		height: 40px;
+		x: (parent.width - self.width) / 2;
+		y: 200px;
+		border-radius: 6px;
+		background: ta.pressed ? #cccccc : white;
+
+		Text {
+			text: "Klik saya";
+			color: black;
+			font-size: 16px;
+		}
+
+		ta := TouchArea {
+			clicked => { }
+		}
+	}
+}

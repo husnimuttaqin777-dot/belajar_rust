@@ -1,0 +1,19 @@
+export component MainWindow inherits Window {
+    width: 1000px;
+    height: 1000px;
+    title: "membuat windows";
+    background: #FF96C5;
+
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: red;
+
+        Rectangle {
+            y: parent.height - parent.height / 10;
+            width: parent.width;
+            height: parent.height / 10;
+            background: pink;
+        }
+    }
+}

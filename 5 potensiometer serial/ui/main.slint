@@ -1,0 +1,84 @@
+component Gauge inherits Rectangle {
+    in property <float> value;
+    in property <float> min-value: 0;
+    in property <float> max-value: 1023;
+
+    width: 200px;
+    height: 200px;
+
+    property <float> shown: value;
+    animate shown { duration: 80ms; easing: ease-out; }
+
+    property <float> p: Math.clamp((shown - min-value) / (max-value - min-value), 0, 1);
+    property <angle> a: (135 + 270 * p) * 1deg;
+
+    property <float> ex: 100 + 80 * Math.cos(a);
+    property <float> ey: 100 + 80 * Math.sin(a);
+    property <float> nx: 100 + 65 * Math.cos(a);
+    property <float> ny: 100 + 65 * Math.sin(a);
+
+    property <color> warna: p < 0.6 ? #2ecc71 : (p < 0.85 ? #f1c40f : #e74c3c);
+
+    Path {
+        width: 200px;
+        height: 200px;
+        viewbox-width: 200;
+        viewbox-height: 200;
+        commands: "M 43.43 156.57 A 80 80 0 1 1 156.57 156.57";
+        stroke: #3a3a3a;
+        stroke-width: 14px;
+    }
+
+    Path {
+        width: 200px;
+        height: 200px;
+        viewbox-width: 200;
+        viewbox-height: 200;
+        commands: "M 43.43 156.57 A 80 80 0 \{root.p > 0.6667 ? 1 : 0} 1 \{root.ex} \{root.ey}";
+        stroke: root.warna;
+        stroke-width: 14px;
+    }
+
+    Path {
+        width: 200px;
+        height: 200px;
+        viewbox-width: 200;
+        viewbox-height: 200;
+        commands: "M 100 100 L \{root.nx} \{root.ny}";
+        stroke: white;
+        stroke-width: 3px;
+    }
+
+    Rectangle {
+        x: 94px;
+        y: 94px;
+        width: 12px;
+        height: 12px;
+        border-radius: 6px;
+        background: white;
+    }
+
+    Text {
+        x: 0px;
+        y: 150px;
+        width: 200px;
+        text: "\{Math.round(root.value)}";
+        font-size: 24px;
+        font-weight: 700;
+        color: white;
+        horizontal-alignment: center;
+    }
+}
+
+export component MainWindow inherits Window {
+    title: "Gauge Potensiometer";
+    preferred-width: 320px;
+    preferred-height: 320px;
+    background: #1e1e1e;
+
+    in property <float> analog-input: 0;
+
+    Gauge {
+        value: root.analog-input;
+    }
+}

@@ -1,0 +1,90 @@
+import { LineEdit, Button, Switch } from "std-widgets.slint";
+
+export component MainWindow inherits Window {
+    title: "MQTT Desktop";
+    preferred-width: 420px;
+    preferred-height: 440px;
+
+    in-out property <string> broker: "127.0.0.1";
+    in-out property <string> port: "1883";
+    in-out property <string> sensor-topic: "demo/sensor";
+    in-out property <string> led-topic: "demo/led";
+
+    in property <bool> connected: false;
+    in property <string> status: "Belum terhubung";
+    in property <string> sensor-value: "-";
+
+    callback connect-broker(string, int, string);
+    callback disconnect-broker();
+    callback led-changed(string, bool);
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 10px;
+
+        Text { text: "Broker"; font-weight: 700; }
+        HorizontalLayout {
+            spacing: 8px;
+            LineEdit { text <=> root.broker; enabled: !root.connected; }
+            LineEdit { text <=> root.port; width: 80px; enabled: !root.connected; }
+        }
+
+        Text { text: "Topic subscribe (sensor)"; }
+        LineEdit { text <=> root.sensor-topic; enabled: !root.connected; }
+
+        Text { text: "Topic publish (LED)"; }
+        LineEdit { text <=> root.led-topic; }
+
+        Button {
+            text: root.connected ? "Putuskan" : "Hubungkan";
+            primary: !root.connected;
+            clicked => {
+                if (root.connected) {
+                    root.disconnect-broker();
+                } else {
+                    root.connect-broker(root.broker, root.port.to-float(), root.sensor-topic);
+                }
+            }
+        }
+
+        Rectangle {
+            height: 110px;
+            background: #2b2b2b;
+            border-radius: 8px;
+            VerticalLayout {
+                alignment: center;
+                spacing: 4px;
+                Text {
+                    text: "Sensor";
+                    color: gray;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: root.sensor-value;
+                    font-size: 40px;
+                    font-weight: 700;
+                    color: white;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 10px;
+            alignment: center;
+            Text { text: "LED"; vertical-alignment: center; }
+            Switch {
+                enabled: root.connected;
+                toggled => { root.led-changed(root.led-topic, self.checked); }
+            }
+        }
+
+        Text {
+            text: root.status;
+            color: gray;
+            font-size: 12px;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+    }
+}

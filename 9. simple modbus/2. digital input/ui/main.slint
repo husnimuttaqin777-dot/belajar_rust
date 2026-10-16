@@ -1,0 +1,50 @@
+export component MainWindow inherits Window {
+    width: 400px;
+    height: 400px;
+    title: "membuat MINI SCADA HMI";
+    background: #FF96C5;
+
+    // diambil dari Rust (setara backend.indicator1_status() di QML)
+    callback indicator1-status() -> string;
+
+    property <string> indicator1-text: "R9";
+    property <color> indicator1-color: #340040;
+
+    // indicator1_color
+    Rectangle {
+        x: 50px;
+        y: 100px;
+        width: 250px;
+        height: 40px;
+        background: root.indicator1-color;
+
+        // indicator1
+        Text {
+            width: parent.width;
+            height: parent.height;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            font-family: "HarmoniaSansW01-Bold";
+            font-size: 20px;
+            text: root.indicator1-text;
+            color: #07F2F2;
+        }
+    }
+
+    // guitimer
+    Timer {
+        interval: 200ms;
+        running: true;
+        triggered => {
+            if (root.indicator1-status() == "off") {
+                root.indicator1-text = "R9 : 0";
+                root.indicator1-color = #340040;
+            }
+
+            if (root.indicator1-status() == "on") {
+                root.indicator1-text = "R9 : 1";
+                root.indicator1-color = #F2055C;
+            }
+        }
+    }
+}

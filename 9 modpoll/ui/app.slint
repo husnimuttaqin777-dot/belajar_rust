@@ -1,0 +1,254 @@
+import { Button, ComboBox, LineEdit, ListView } from "std-widgets.slint";
+
+export struct Row {
+    addr: string,
+    addr-num: int,
+    value: string,
+    hex: string,
+    raw: int,
+}
+
+export struct LogLine {
+    text: string,
+    err: bool,
+}
+
+component Field inherits VerticalLayout {
+    in property <string> label;
+    spacing: 2px;
+    Text { text: root.label; color: #a6adc8; font-size: 11px; }
+}
+
+export component MainWindow inherits Window {
+    title: "Modbus RTU Poll (Rust + Slint)";
+    width: 1000px;
+    height: 760px;
+    background: #11111b;
+
+    // ---- setting serial ----
+    in-out property <string> port: "";
+    in property <[string]> ports;
+    in-out property <int> baud-index: 3;
+    in-out property <int> databits-index: 0;
+    in-out property <int> parity-index: 0;
+    in-out property <int> stopbits-index: 0;
+    in-out property <string> timeout-ms: "1000";
+
+    // ---- parameter poll ----
+    in-out property <string> slave-id: "1";
+    in-out property <int> fc-index: 3;
+    in-out property <string> start-addr: "0";
+    in-out property <string> quantity: "20";
+    in-out property <string> scan-rate: "500";
+    in-out property <int> fmt-index: 0;
+    in-out property <string> write-addr: "0";
+    in-out property <string> write-val: "0";
+
+    in property <bool> connected: false;
+    in property <string> status: "Tidak terhubung";
+    in property <bool> status-ok: false;
+    in property <[Row]> rows;
+    in property <[LogLine]> traffic;
+
+    callback toggle-connect();
+    callback refresh-ports();
+    callback apply();
+    callback do-write();
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 10px;
+
+        // ---------- setting serial ----------
+        HorizontalLayout {
+            spacing: 10px;
+            Field {
+                label: "Port";
+                horizontal-stretch: 1;
+                ComboBox {
+                    model: root.ports;
+                    enabled: !root.connected;
+                    selected(v) => { root.port = v; }
+                }
+            }
+            Field {
+                label: " ";
+                width: 80px;
+                Button {
+                    text: "Refresh";
+                    enabled: !root.connected;
+                    clicked => { root.refresh-ports(); }
+                }
+            }
+            Field {
+                label: "Baud";
+                width: 110px;
+                ComboBox {
+                    model: ["1200", "2400", "4800", "9600", "19200", "38400", "57600", "115200"];
+                    current-index <=> root.baud-index;
+                    enabled: !root.connected;
+                }
+            }
+            Field {
+                label: "Data bits";
+                width: 80px;
+                ComboBox {
+                    model: ["8", "7"];
+                    current-index <=> root.databits-index;
+                    enabled: !root.connected;
+                }
+            }
+            Field {
+                label: "Parity";
+                width: 100px;
+                ComboBox {
+                    model: ["None", "Even", "Odd"];
+                    current-index <=> root.parity-index;
+                    enabled: !root.connected;
+                }
+            }
+            Field {
+                label: "Stop bits";
+                width: 80px;
+                ComboBox {
+                    model: ["1", "2"];
+                    current-index <=> root.stopbits-index;
+                    enabled: !root.connected;
+                }
+            }
+            Field {
+                label: "Timeout (ms)";
+                width: 90px;
+                LineEdit { text <=> root.timeout-ms; enabled: !root.connected; }
+            }
+            Field {
+                label: " ";
+                width: 120px;
+                Button {
+                    text: root.connected ? "Disconnect" : "Connect";
+                    primary: true;
+                    clicked => { root.toggle-connect(); }
+                }
+            }
+        }
+
+        // ---------- parameter poll ----------
+        HorizontalLayout {
+            spacing: 10px;
+            Field {
+                label: "Slave ID";
+                width: 80px;
+                LineEdit { text <=> root.slave-id; edited => { root.apply(); } }
+            }
+            Field {
+                label: "Tipe data";
+                horizontal-stretch: 1;
+                ComboBox {
+                    model: ["Coil (FC01)", "Discrete Input (FC02)", "Input Register (FC04)", "Holding Register (FC03)"];
+                    current-index <=> root.fc-index;
+                    selected => { root.apply(); }
+                }
+            }
+            Field {
+                label: "Address";
+                width: 90px;
+                LineEdit { text <=> root.start-addr; edited => { root.apply(); } }
+            }
+            Field {
+                label: "Quantity";
+                width: 80px;
+                LineEdit { text <=> root.quantity; edited => { root.apply(); } }
+            }
+            Field {
+                label: "Scan rate (ms)";
+                width: 100px;
+                LineEdit { text <=> root.scan-rate; edited => { root.apply(); } }
+            }
+            Field {
+                label: "Format";
+                width: 120px;
+                ComboBox {
+                    model: ["Unsigned", "Signed", "Hex", "Binary"];
+                    current-index <=> root.fmt-index;
+                    selected => { root.apply(); }
+                }
+            }
+        }
+
+        // ---------- tabel nilai ----------
+        Rectangle {
+            vertical-stretch: 1;
+            background: #181825;
+            border-radius: 6px;
+            clip: true;
+
+            VerticalLayout {
+                Rectangle {
+                    height: 28px;
+                    background: #313244;
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        spacing: 8px;
+                        Text { text: "Alamat"; width: 90px; color: #cdd6f4; vertical-alignment: center; font-weight: 700; }
+                        Text { text: "Nilai"; horizontal-stretch: 1; color: #cdd6f4; vertical-alignment: center; font-weight: 700; }
+                        Text { text: "Hex"; width: 90px; color: #cdd6f4; vertical-alignment: center; font-weight: 700; }
+                    }
+                }
+                ListView {
+                    for row[i] in root.rows: Rectangle {
+                        height: 26px;
+                        background: ta.has-hover ? #45475a : (mod(i, 2) == 0 ? #181825 : #1e1e2e);
+                        ta := TouchArea {
+                            clicked => {
+                                root.write-addr = "\{row.addr-num}";
+                                root.write-val = "\{row.raw}";
+                            }
+                        }
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            spacing: 8px;
+                            Text { text: row.addr; width: 90px; color: #89b4fa; vertical-alignment: center; font-family: "monospace"; }
+                            Text { text: row.value; horizontal-stretch: 1; color: #cdd6f4; vertical-alignment: center; font-family: "monospace"; }
+                            Text { text: row.hex; width: 90px; color: #a6adc8; vertical-alignment: center; font-family: "monospace"; }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---------- tulis ----------
+        HorizontalLayout {
+            spacing: 10px;
+            Text {
+                text: "Tulis (klik baris untuk isi otomatis; hanya Coil & Holding):";
+                color: #a6adc8;
+                vertical-alignment: center;
+            }
+            LineEdit { width: 90px; text <=> root.write-addr; placeholder-text: "alamat"; }
+            LineEdit { width: 110px; text <=> root.write-val; placeholder-text: "nilai / 0x.."; }
+            Button { text: "Write"; clicked => { root.do-write(); } }
+        }
+
+        // ---------- log TX/RX ----------
+        Rectangle {
+            height: 150px;
+            background: #181825;
+            border-radius: 6px;
+            clip: true;
+            ListView {
+                for line in root.traffic: Text {
+                    text: line.text;
+                    font-family: "monospace";
+                    font-size: 11px;
+                    color: line.err ? #f38ba8 : #a6adc8;
+                }
+            }
+        }
+
+        // ---------- status ----------
+        Text {
+            text: root.status;
+            color: root.status-ok ? #a6e3a1 : #f38ba8;
+        }
+    }
+}

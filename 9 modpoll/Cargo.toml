@@ -1,0 +1,13 @@
+[package]
+name = "modpoll"
+version = "0.1.0"
+edition = "2021"
+default-run = "modpoll"
+
+[dependencies]
+slint = "1.8"
+rand = "0.8"
+serialport = { version = "4", default-features = false }
+
+[build-dependencies]
+slint-build = "1.8"

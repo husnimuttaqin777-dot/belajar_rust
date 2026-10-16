@@ -1,0 +1,42 @@
+import { Slider } from "std-widgets.slint";
+
+export component MainWindow inherits Window {
+    width: 400px;
+    height: 400px;
+    title: "membuat slider";
+    background: #FF96C5;
+
+    in-out property <float> nilai: 50;
+
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: red;
+
+        // batang yang lebarnya mengikuti nilai slider
+        Rectangle {
+            y: parent.height - parent.height / 10;
+            width: parent.width * root.nilai / 100;
+            height: parent.height / 10;
+            background: pink;
+        }
+    }
+
+    Text {
+        y: 140px;
+        width: parent.width;
+        horizontal-alignment: center;
+        text: "Nilai: " + Math.round(root.nilai);
+        color: white;
+        font-size: 24px;
+    }
+
+    Slider {
+        x: 50px;
+        y: 200px;
+        width: parent.width - 100px;
+        minimum: 0;
+        maximum: 100;
+        value <=> root.nilai;
+    }
+}

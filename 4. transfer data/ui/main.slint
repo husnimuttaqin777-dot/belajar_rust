@@ -1,0 +1,440 @@
+
+// Qt Quick Extras (CircularGauge, Gauge) tidak ada di Slint, jadi digambar manual.
+import { Slider } from "std-widgets.slint";
+
+// ---------------------------------------------------------------
+// Tombol on/off: merah (#df1c39) saat off, cyan (#04f8fa) saat on
+// ---------------------------------------------------------------
+component ToggleButton inherits Rectangle {
+    in-out property <bool> aktif: false;
+    callback toggled(string);
+
+    width: 250px;
+    height: 40px;
+    background: root.aktif ? #04f8fa : #df1c39;
+
+    Text {
+        width: parent.width;
+        height: parent.height;
+        text: root.aktif ? "on" : "off";
+        color: black;
+        font-size: 20px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    TouchArea {
+        clicked => {
+            root.aktif = !root.aktif;
+            root.toggled(root.aktif ? "on" : "off");
+        }
+    }
+}
+
+// ---------------------------------------------------------------
+// Pengganti CircularGauge: sudut -145 .. +145 derajat, label tiap 10
+// ---------------------------------------------------------------
+component CircularGauge inherits Rectangle {
+    in property <float> value: 0;
+    in property <float> minimum: 0;
+    in property <float> maximum: 100;
+    in property <color> needle-color: #04f8fa;
+
+    width: 300px;
+    height: 300px;
+
+    // nilai -> sudut (0 derajat = tegak lurus ke atas)
+    pure function ang(v: float) -> angle {
+        return (-145 + (v - root.minimum) / (root.maximum - root.minimum) * 290) * 1deg;
+    }
+    pure function clamped() -> float {
+        return Math.max(root.minimum, Math.min(root.maximum, root.value));
+    }
+
+    // muka gauge
+    Rectangle {
+        x: 10px;
+        y: 10px;
+        width: 280px;
+        height: 280px;
+        border-radius: 140px;
+        background: #000212;
+        border-width: 2px;
+        border-color: #5b6d8a;
+    }
+
+    // garis skala: 51 garis, tiap kelipatan 5 = garis besar
+    for i in 51 : Path {
+        width: root.width;
+        height: root.height;
+        viewbox-width: 300;
+        viewbox-height: 300;
+        stroke: white;
+        stroke-width: Math.mod(i, 5) == 0 ? 3px : 1px;
+
+        MoveTo {
+            x: 150 + 128 * Math.sin(root.ang(root.minimum + i * (root.maximum - root.minimum) / 50));
+            y: 150 - 128 * Math.cos(root.ang(root.minimum + i * (root.maximum - root.minimum) / 50));
+        }
+        LineTo {
+            x: 150 + (Math.mod(i, 5) == 0 ? 108 : 118) * Math.sin(root.ang(root.minimum + i * (root.maximum - root.minimum) / 50));
+            y: 150 - (Math.mod(i, 5) == 0 ? 108 : 118) * Math.cos(root.ang(root.minimum + i * (root.maximum - root.minimum) / 50));
+        }
+    }
+
+    // angka skala: 0, 10, 20 ... 100
+    for i in 11 : Text {
+        width: 40px;
+        height: 20px;
+        x: 150px + 92px * Math.sin(root.ang(root.minimum + i * (root.maximum - root.minimum) / 10)) - 20px;
+        y: 150px - 92px * Math.cos(root.ang(root.minimum + i * (root.maximum - root.minimum) / 10)) - 10px;
+        text: "" + Math.round(root.minimum + i * (root.maximum - root.minimum) / 10);
+        color: white;
+        font-size: 13px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    // jarum
+    Path {
+        width: root.width;
+        height: root.height;
+        viewbox-width: 300;
+        viewbox-height: 300;
+        stroke: root.needle-color;
+        stroke-width: 4px;
+        stroke-line-cap: round;
+
+        MoveTo {
+            x: 150 - 20 * Math.sin(root.ang(root.clamped()));
+            y: 150 + 20 * Math.cos(root.ang(root.clamped()));
+        }
+        LineTo {
+            x: 150 + 105 * Math.sin(root.ang(root.clamped()));
+            y: 150 - 105 * Math.cos(root.ang(root.clamped()));
+        }
+    }
+
+    // poros jarum
+    Rectangle {
+        x: 142px;
+        y: 142px;
+        width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        background: root.needle-color;
+    }
+}
+
+// ---------------------------------------------------------------
+// Pengganti Gauge (batang vertikal): skala 0..100, label tiap 20
+// ---------------------------------------------------------------
+component BarGauge inherits Rectangle {
+    in property <float> value: 0;
+    in property <color> bar-color: #04f8fa;
+
+    width: 150px;
+    height: 270px;
+
+    // latar batang
+    Rectangle {
+        x: 80px;
+        y: 10px;
+        width: 70px;
+        height: 250px;
+        background: #0a1a33;
+        border-width: 1px;
+        border-color: #5b6d8a;
+    }
+
+    // isi batang (naik dari bawah)
+    Rectangle {
+        x: 80px;
+        width: 70px;
+        height: 250px * Math.max(0, Math.min(100, root.value)) / 100;
+        y: 260px - self.height;
+        background: root.bar-color;
+    }
+
+    // garis dan angka skala
+    for i in 6 : Rectangle {
+        x: 62px;
+        y: 260px - 250px * (i * 20) / 100 - 1px;
+        width: 14px;
+        height: 2px;
+        background: white;
+    }
+    for i in 6 : Text {
+        x: 15px;
+        y: 260px - 250px * (i * 20) / 100 - 10px;
+        width: 42px;
+        height: 20px;
+        text: "" + (i * 20);
+        color: white;
+        font-size: 14px;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+    }
+}
+
+// ---------------------------------------------------------------
+// Jendela utama (1000 x 600, ukuran tetap)
+// ---------------------------------------------------------------
+export component MainWindow inherits Window {
+    title: "Arduino RUST GUI";
+    background: #000212;
+    preferred-width: 1000px;
+    preferred-height: 600px;
+    min-width: 1000px;
+    max-width: 1000px;
+    min-height: 600px;
+    max-height: 600px;
+
+    // ---- data dari Rust ke UI (padanan get_analog, get_input1_color, ...)
+    in-out property <float> analog-input: 60;
+    in property <color> input1-color: #0786ad;
+    in property <color> input2-color: #df1c39;
+
+    // ---- kejadian dari UI ke Rust (padanan slot button1..3, analog_output)
+    callback button1(string);
+    callback button2(string);
+    callback button3(string);
+    callback analog-output(int);
+
+    property <int> analog-terakhir: 0;
+
+    // logo
+    Image {
+        x: 20px;
+        y: 10px;
+        width: 150px;
+        height: 100px;
+        source: @image-url("arduino.png");
+        image-fit: fill;
+    }
+    Image {
+        x: 850px;
+        y: 10px;
+        width: 100px;
+        height: 100px;
+        source: @image-url("rust.png");
+        image-fit: fill;
+    }
+
+    // header
+    Rectangle {
+        x: 200px;
+        y: 0px;
+        width: 600px;
+        height: 130px;
+        background: #122e55;
+    }
+    Text {
+        y: 0px;
+        width: parent.width;
+        text: "ARDUINO RUST GUI";
+        color: white;
+        font-size: 50px;
+        horizontal-alignment: center;
+    }
+    Text {
+        y: 60px;
+        width: parent.width;
+        text: "written by : Muhammad Husni";
+        color: white;
+        font-size: 24px;
+        horizontal-alignment: center;
+    }
+
+    // ============ panel ANALOG OUTPUT ============
+    Rectangle {
+        x: 10px;
+        y: 150px;
+        width: 300px;
+        height: 400px;
+        background: #122e55;
+
+        Text {
+            x: 0px;
+            y: 0px;
+            text: "ANALOG OUTPUT";
+            font-size: 30px;
+            color: white;
+        }
+
+        CircularGauge {
+            x: 0px;
+            y: 50px;
+            value: Math.round(slider1.value);
+            minimum: 0;
+            maximum: 100;
+        }
+
+        slider1 := Slider {
+            x: 0px;
+            y: 360px;
+            width: 300px;
+            height: 20px;
+            minimum: 0;
+            maximum: 100;
+            value: 0;
+            changed(v) => {
+                // hanya kirim kalau nilai bulat berubah (padanan stepSize: 1)
+                if (Math.round(v) != root.analog-terakhir) {
+                    root.analog-terakhir = Math.round(v);
+                    root.analog-output(root.analog-terakhir);
+                }
+            }
+        }
+    }
+
+    // ============ panel DIGITAL INPUT OUTPUT ============
+    Rectangle {
+        x: 350px;
+        y: 150px;
+        width: 400px;
+        height: 400px;
+        background: #122e55;
+
+        Text {
+            x: 0px;
+            y: 0px;
+            text: "DIGITAL INPUT OUTPUT";
+            font-size: 30px;
+            color: white;
+        }
+
+        Text {
+            x: 0px;
+            y: 55px;
+            text: "OUTPUT 1 :";
+            font-size: 22px;
+            color: white;
+        }
+        ToggleButton {
+            x: 120px;
+            y: 50px;
+            toggled(s) => { root.button1(s); }
+        }
+
+        Text {
+            x: 0px;
+            y: 115px;
+            text: "OUTPUT 2 :";
+            font-size: 22px;
+            color: white;
+        }
+        ToggleButton {
+            x: 120px;
+            y: 110px;
+            toggled(s) => { root.button2(s); }
+        }
+
+        Text {
+            x: 0px;
+            y: 175px;
+            text: "OUTPUT 3 :";
+            font-size: 22px;
+            color: white;
+        }
+        ToggleButton {
+            x: 120px;
+            y: 170px;
+            toggled(s) => { root.button3(s); }
+        }
+
+        // kotak status INPUT 1
+        Rectangle {
+            x: 30px;
+            y: 250px;
+            width: 120px;
+            height: 130px;
+            background: root.input1-color;
+
+            Image {
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: 90px;
+                source: @image-url("sensor.png");
+                image-fit: fill;
+            }
+            Text {
+                y: 95px;
+                width: parent.width;
+                text: "INPUT 1";
+                color: white;
+                font-size: 23px;
+                horizontal-alignment: center;
+            }
+        }
+
+        // kotak status INPUT 2
+        Rectangle {
+            x: 220px;
+            y: 250px;
+            width: 120px;
+            height: 130px;
+            background: root.input2-color;
+
+            Image {
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: 90px;
+                source: @image-url("sensor.png");
+                image-fit: fill;
+            }
+            Text {
+                y: 95px;
+                width: parent.width;
+                text: "INPUT 2";
+                color: white;
+                font-size: 23px;
+                horizontal-alignment: center;
+            }
+        }
+    }
+
+    // ============ panel ANALOG INPUT ============
+    Rectangle {
+        x: 800px;
+        y: 150px;
+        width: 180px;
+        height: 400px;
+        background: #122e55;
+
+        Text {
+            y: 0px;
+            width: parent.width;
+            text: "ANALOG INPUT";
+            font-size: 24px;
+            color: white;
+            horizontal-alignment: center;
+        }
+
+        BarGauge {
+            x: 30px;
+            y: 45px;
+            value: root.analog-input;
+        }
+
+        Text {
+            y: 330px;
+            width: parent.width;
+            text: "" + Math.round(root.analog-input);
+            font-size: 33px;
+            color: white;
+            horizontal-alignment: center;
+        }
+    }
+
+    // teks bawah
+    Text {
+        x: 0px;
+        y: 570px;
+        text: "FREE SOFTWARE, FOR EDUCATIONAL PURPOSE";
+        font-size: 20px;
+        color: #04f8fa;
+    }
+}

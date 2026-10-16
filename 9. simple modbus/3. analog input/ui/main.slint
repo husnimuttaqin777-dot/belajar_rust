@@ -1,0 +1,110 @@
+export component MainWindow inherits Window {
+    width: 400px;
+    height: 400px;
+    title: "membuat MINI SCADA HMI";
+    background: black;
+
+    // diambil dari Rust (setara backend.sensor() di QML)
+    callback sensor() -> int;
+
+    // gauge: value 0, minimumValue 0, maximumValue 100, labelStepSize 10
+    property <float> gauge-value: 0;
+    property <angle> needle-angle: -145deg + (Math.clamp(root.gauge-value, 0, 100) / 100) * 290deg;
+
+    // gauge (CircularGauge) x:10 y:70 width:250 height:250
+    Rectangle {
+        x: 10px;
+        y: 70px;
+        width: 250px;
+        height: 250px;
+
+        // background
+        Rectangle {
+            width: parent.width;
+            height: parent.height;
+            border-radius: self.width / 2;
+            background: #1e1e1e;
+            border-width: 2px;
+            border-color: #3c3c3c;
+        }
+
+        // tickmark: 11 mayor (0..100 step 10) + 4 minor di antaranya
+        for j in 51 : tick := Path {
+            width: 250px;
+            height: 250px;
+            viewbox-width: 250;
+            viewbox-height: 250;
+            stroke: #c8c8c8;
+            stroke-width: Math.mod(j, 5) == 0 ? 3px : 1px;
+            property <angle> a: -145deg + j * 5.8deg;
+            property <float> inner: Math.mod(j, 5) == 0 ? 94 : 101;
+
+            MoveTo {
+                x: 125 + 108 * Math.sin(tick.a);
+                y: 125 - 108 * Math.cos(tick.a);
+            }
+            LineTo {
+                x: 125 + tick.inner * Math.sin(tick.a);
+                y: 125 - tick.inner * Math.cos(tick.a);
+            }
+        }
+
+        // label tiap 10
+        for i in 11 : Text {
+            property <angle> a: -145deg + i * 29deg;
+            x: 125px + 76px * Math.sin(self.a) - 15px;
+            y: 125px - 76px * Math.cos(self.a) - 10px;
+            width: 30px;
+            height: 20px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            font-size: 14px;
+            color: #c8c8c8;
+            text: "\{i * 10}";
+        }
+
+        // jarum
+        Path {
+            width: 250px;
+            height: 250px;
+            viewbox-width: 250;
+            viewbox-height: 250;
+            fill: #e34c22;
+
+            MoveTo {
+                x: 125 + 100 * Math.sin(root.needle-angle);
+                y: 125 - 100 * Math.cos(root.needle-angle);
+            }
+            LineTo {
+                x: 125 + 4 * Math.cos(root.needle-angle);
+                y: 125 + 4 * Math.sin(root.needle-angle);
+            }
+            LineTo {
+                x: 125 - 4 * Math.cos(root.needle-angle);
+                y: 125 - 4 * Math.sin(root.needle-angle);
+            }
+            Close {}
+        }
+
+        // knob tengah
+        Rectangle {
+            x: 125px - 10px;
+            y: 125px - 10px;
+            width: 20px;
+            height: 20px;
+            border-radius: 10px;
+            background: #5a5a5a;
+            border-width: 1px;
+            border-color: #8c8c8c;
+        }
+    }
+
+    // tmgauge
+    Timer {
+        interval: 200ms;
+        running: true;
+        triggered => {
+            root.gauge-value = root.sensor();
+        }
+    }
+}
