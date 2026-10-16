@@ -1,0 +1,98 @@
+// Slider horizontal bergaya Qt Quick Controls 2 (Default style):
+// padding 6, groove tinggi 4 (#bdbebf), progress #21be2b, handle bulat 28x28.
+component QtSlider inherits Rectangle {
+    in-out property <float> value: 0;
+    in property <float> from: 0;
+    in property <float> to: 100;
+
+    property <length> pad: 6px;
+    property <length> handle-size: 28px;
+    property <length> avail: root.width - 2 * root.pad;
+    // posisi 0..1
+    property <float> position: (root.value - root.from) / (root.to - root.from);
+    property <length> handle-x: root.pad + root.position * (root.avail - root.handle-size);
+    // jarak klik ke tengah handle (agar tidak "loncat" kalau klik di handle)
+    property <length> grab-offset: 0px;
+
+    function set-from-x(x: length) {
+        root.value = root.from + Math.clamp((x - root.grab-offset - root.pad - root.handle-size / 2) / (root.avail - root.handle-size), 0, 1) * (root.to - root.from);
+    }
+
+    // groove
+    Rectangle {
+        x: root.pad;
+        y: root.height / 2 - 2px;
+        width: root.avail;
+        height: 4px;
+        border-radius: 2px;
+        background: #bdbebf;
+
+        // progress
+        Rectangle {
+            x: 0px;
+            y: 0px;
+            width: root.position * parent.width;
+            height: parent.height;
+            border-radius: 2px;
+            background: #21be2b;
+        }
+    }
+
+    // handle
+    Rectangle {
+        x: root.handle-x;
+        y: root.height / 2 - root.handle-size / 2;
+        width: root.handle-size;
+        height: root.handle-size;
+        border-radius: root.handle-size / 2;
+        background: touch.pressed ? #f0f0f0 : #f6f6f6;
+        border-width: 1px;
+        border-color: #bdbebf;
+    }
+
+    touch := TouchArea {
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
+                if (self.mouse-x >= root.handle-x && self.mouse-x <= root.handle-x + root.handle-size) {
+                    root.grab-offset = self.mouse-x - (root.handle-x + root.handle-size / 2);
+                } else {
+                    root.grab-offset = 0px;
+                }
+                root.set-from-x(self.mouse-x);
+            }
+        }
+        moved => {
+            root.set-from-x(self.mouse-x);
+        }
+    }
+}
+
+export component MainWindow inherits Window {
+    width: 400px;
+    height: 400px;
+    title: "membuat MINI SCADA HMI";
+    background: black;
+
+    // dikirim ke Rust (setara backend.slider(...) di QML)
+    callback slider(int);
+
+    // slider: x 10, y 70, 250 x 250, value 0, from 0, to 100
+    slider-ctrl := QtSlider {
+        x: 10px;
+        y: 70px;
+        width: 250px;
+        height: 250px;
+        value: 0;
+        from: 0;
+        to: 100;
+    }
+
+    // tmgauge
+    Timer {
+        interval: 200ms;
+        running: true;
+        triggered => {
+            root.slider(Math.floor(slider-ctrl.value));
+        }
+    }
+}
