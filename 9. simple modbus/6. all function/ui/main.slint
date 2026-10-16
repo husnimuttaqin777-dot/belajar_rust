@@ -1,0 +1,577 @@
+// ---------------------------------------------------------------------------
+// Pengganti controls/CircularSlider.qml (file aslinya tidak ada di upload,
+// jadi perilakunya dibuat ulang dari properti yang dipakai di main.qml).
+// Sudut dalam derajat, searah jarum jam dari posisi jam 12.
+// ---------------------------------------------------------------------------
+component CircularSlider inherits Rectangle {
+    in-out property <float> value: 0;
+    in property <float> min-value: 0;
+    in property <float> max-value: 100;
+    in property <float> start-angle: 0;
+    in property <float> end-angle: 360;
+    in property <float> rot: 0;              // setara "rotation" di QML
+    in property <float> track-width: 5;
+    in property <float> progress-width: 20;
+    in property <color> track-color: #4d4d4d;
+    in property <color> progress-color: #F2055C;
+    in property <bool> hide-track: false;
+    in property <bool> hide-progress: false;
+    in property <bool> interactive: true;
+    in property <bool> needle: false;        // handle kustom berupa jarum
+    in property <float> handle-h: 20;        // handleHeight (perkiraan)
+
+    out property <float> angle: root.start-angle + (root.value - root.min-value) / (root.max-value - root.min-value) * (root.end-angle - root.start-angle);
+
+    property <float> size: root.width / 1px;
+    property <float> c: root.size / 2;
+    property <float> r: root.c - root.progress-width / 2;
+    property <angle> a-start: (root.rot + root.start-angle) * 1deg;
+    property <angle> a-end: (root.rot + root.end-angle) * 1deg;
+    property <angle> a-val: (root.rot + root.angle) * 1deg;
+    // jarum: dari (c - handle-h/2) ke arah pusat sepanjang size/2, dengan ujung membulat
+    property <float> n1: root.c - root.handle-h / 2 - 5;
+    property <float> n2: -root.handle-h / 2 + 5;
+
+    property <float> t: 0;
+    property <float> local: 0;
+    property <float> gap-pos: 0;
+    property <float> gap-len: 0;
+
+    function update-from(px: length, py: length) {
+        root.t = Math.atan2((px - root.width / 2) / 1px, -(py - root.height / 2) / 1px) / 1deg;
+        root.local = Math.mod(Math.mod(root.t - root.rot, 360) + 360, 360);
+        if (root.local >= root.start-angle && root.local <= root.end-angle) {
+            root.value = root.min-value + (root.local - root.start-angle) / (root.end-angle - root.start-angle) * (root.max-value - root.min-value);
+        } else {
+            root.gap-pos = Math.mod(root.local - root.end-angle + 360, 360);
+            root.gap-len = root.start-angle + 360 - root.end-angle;
+            root.value = root.gap-pos < root.gap-len / 2 ? root.max-value : root.min-value;
+        }
+    }
+
+    // track
+    Path {
+        visible: !root.hide-track;
+        width: root.width;
+        height: root.height;
+        viewbox-width: root.size;
+        viewbox-height: root.size;
+        stroke: root.track-color;
+        stroke-width: root.track-width * 1px;
+        MoveTo {
+            x: root.c + root.r * Math.sin(root.a-start);
+            y: root.c - root.r * Math.cos(root.a-start);
+        }
+        ArcTo {
+            radius-x: root.r;
+            radius-y: root.r;
+            x: root.c + root.r * Math.sin(root.a-end);
+            y: root.c - root.r * Math.cos(root.a-end);
+            large-arc: (root.end-angle - root.start-angle) > 180;
+            sweep: true;
+        }
+    }
+
+    // progress (FlatCap)
+    Path {
+        visible: !root.hide-progress;
+        width: root.width;
+        height: root.height;
+        viewbox-width: root.size;
+        viewbox-height: root.size;
+        stroke: root.progress-color;
+        stroke-width: root.progress-width * 1px;
+        MoveTo {
+            x: root.c + root.r * Math.sin(root.a-start);
+            y: root.c - root.r * Math.cos(root.a-start);
+        }
+        ArcTo {
+            radius-x: root.r;
+            radius-y: root.r;
+            x: root.c + root.r * Math.sin(root.a-val);
+            y: root.c - root.r * Math.cos(root.a-val);
+            large-arc: (root.angle - root.start-angle) > 180;
+            sweep: true;
+        }
+    }
+
+    // handle jarum: lebar 10, warna #05F26C, border 3 #340040, radius 5
+    Path {
+        visible: root.needle;
+        width: root.width;
+        height: root.height;
+        viewbox-width: root.size;
+        viewbox-height: root.size;
+        stroke: #340040;
+        stroke-width: 10px;
+        stroke-line-cap: round;
+        MoveTo {
+            x: root.c + root.n1 * Math.sin(root.a-val);
+            y: root.c - root.n1 * Math.cos(root.a-val);
+        }
+        LineTo {
+            x: root.c + root.n2 * Math.sin(root.a-val);
+            y: root.c - root.n2 * Math.cos(root.a-val);
+        }
+    }
+    Path {
+        visible: root.needle;
+        width: root.width;
+        height: root.height;
+        viewbox-width: root.size;
+        viewbox-height: root.size;
+        stroke: #05F26C;
+        stroke-width: 4px;
+        stroke-line-cap: round;
+        MoveTo {
+            x: root.c + root.n1 * Math.sin(root.a-val);
+            y: root.c - root.n1 * Math.cos(root.a-val);
+        }
+        LineTo {
+            x: root.c + root.n2 * Math.sin(root.a-val);
+            y: root.c - root.n2 * Math.cos(root.a-val);
+        }
+    }
+
+    TouchArea {
+        enabled: root.interactive;
+        pointer-event(e) => {
+            if (root.interactive && e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
+                root.update-from(self.mouse-x, self.mouse-y);
+            }
+        }
+        moved => {
+            if (root.interactive) {
+                root.update-from(self.mouse-x, self.mouse-y);
+            }
+        }
+    }
+}
+
+// Repeater 72 indikator (5 x 20, radius 2.5, tiap 5 derajat)
+component IndicatorRing inherits Rectangle {
+    in property <float> ring-angle: 0;
+    property <float> half: root.width / 2px;
+
+    for index in 72 : ind := Path {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        viewbox-width: root.width / 1px;
+        viewbox-height: root.height / 1px;
+        property <angle> a: index * 5deg;
+        stroke: index * 5.0 > root.ring-angle ? #16171C : #F2055C;
+        stroke-width: 5px;
+        stroke-line-cap: round;
+        MoveTo {
+            x: root.half + (root.half - 2.5) * Math.sin(ind.a);
+            y: root.half - (root.half - 2.5) * Math.cos(ind.a);
+        }
+        LineTo {
+            x: root.half + (root.half - 17.5) * Math.sin(ind.a);
+            y: root.half - (root.half - 17.5) * Math.cos(ind.a);
+        }
+    }
+}
+
+// Button navigasi 90x90: kotak berwarna + gambar 80x80 di tengah
+component NavButton inherits Rectangle {
+    in-out property <bool> checked: false;
+    in property <image> icon;
+    callback clicked();
+    width: 90px;
+    height: 90px;
+    background: root.checked ? #F2055C : #340040;
+
+    Image {
+        x: 5px;
+        y: 5px;
+        width: root.width - 10px;
+        height: root.height - 10px;
+        source: root.icon;
+        image-fit: fill;
+    }
+    TouchArea {
+        clicked => {
+            root.checked = !root.checked;
+            root.clicked();
+        }
+    }
+}
+
+// Button checkable 250x40 dengan teks di tengah
+component OutButton inherits Rectangle {
+    in-out property <bool> checked: false;
+    in property <string> label;
+    width: 250px;
+    height: 40px;
+    background: root.checked ? #F2055C : #340040;
+
+    Text {
+        width: parent.width;
+        height: parent.height;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        font-family: "HarmoniaSansW01-Bold";
+        font-size: 20px;
+        text: root.label;
+        color: #07F2F2;
+    }
+    TouchArea {
+        clicked => {
+            root.checked = !root.checked;
+        }
+    }
+}
+
+// Indikator 250x40
+component Indicator inherits Rectangle {
+    in property <bool> on: false;
+    in property <string> label;
+    width: 250px;
+    height: 40px;
+    background: root.on ? #F2055C : #340040;
+
+    Text {
+        width: parent.width;
+        height: parent.height;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        font-family: "HarmoniaSansW01-Bold";
+        font-size: 20px;
+        text: root.label;
+        color: #07F2F2;
+    }
+}
+
+export component MainWindow inherits Window {
+    // ukuran tetap 800x650 (width/height tidak boleh dipakai bersama min/max)
+    preferred-width: 800px;
+    preferred-height: 650px;
+    min-width: 800px;
+    max-width: 800px;
+    min-height: 650px;
+    max-height: 650px;
+    title: "Outseal SCADA Display";
+    background: #05F26C;
+
+    // ke Rust (setara backend.buttonN / slider / sensor / indicatorN_status)
+    callback button(int, int);          // (nomor 1..4, nilai 0/1)
+    callback slider(int);
+    callback sensor() -> int;
+    callback indicator-status(int) -> string;   // "on" / "off"
+
+    property <bool> ind1: false;
+    property <bool> ind2: false;
+    property <bool> ind3: false;
+    property <bool> ind4: false;
+    property <string> discrete-text: "";
+    property <string> coil-text: "";
+
+    // ============ header ============
+    Rectangle {
+        x: 50px;
+        y: 10px;
+        width: 680px;
+        height: 130px;
+        border-width: 5px;
+        background: #F2055C;
+        border-color: #340040;
+
+        Rectangle {
+            x : 0px;
+            width: 100px;
+            height: parent.height;
+            background: #340040;
+
+            Image {
+                x: 10px;
+                y: (parent.height - 70px) / 2;
+                width: 70px;
+                height: 70px;
+                source: @image-url("image/outseal_red.png");
+                image-fit: fill;
+            }
+        }
+
+        Text {
+            x: 130px;
+            y: 10px;
+            font-family: "HarmoniaSansW01-Bold";
+            font-size: 39px;
+            text: "RUST outseal hmi-scada";
+            color: #340040;
+        }
+
+        Text {
+            x: 130px;
+            y: 70px;
+            font-family: "HarmoniaSansW01-Bold";
+            font-size: 25px;
+            text: "written by : Muhammad Husni";
+            color: #340040;
+        }
+    }
+
+    // ============ tombol navigasi ============
+    nav1 := NavButton {
+        x: 50px;
+        y: 150px;
+        checked: true;
+        icon: @image-url("image/micro.png");
+        clicked => {
+            if (nav1.checked) {
+                nav2.checked = false;
+            }
+        }
+    }
+
+    nav2 := NavButton {
+        x: 50px;
+        y: 250px;
+        checked: false;
+        icon: @image-url("image/gauge.png");
+        clicked => {
+            if (nav2.checked) {
+                nav1.checked = false;
+            }
+        }
+    }
+
+    // ============ page1: Digital I/O ============
+    Rectangle {
+        x: 150px;
+        y: 150px;
+        width: 580px;
+        height: 490px;
+        border-width: 5px;
+        background: #07F2F2;
+        border-color: #340040;
+        visible: nav1.checked;
+
+        Text {
+            x: 0px;
+            y: 10px;
+            width: 580px;
+            horizontal-alignment: center;
+            font-family: "HarmoniaSansW01-Bold";
+            font-size: 25px;
+            text: "Outseal Digital I/O";
+            color: #340040;
+        }
+
+        Rectangle {
+            x: 0px;
+            y: 60px;
+            width: 580px;
+            height: 5px;
+            background: #340040;
+        }
+
+        Rectangle {
+            x: 280px;
+            y: 65px;
+            width: 5px;
+            height: 425px;
+            background: #340040;
+        }
+
+        Text {
+            x: 10px;
+            y: 70px;
+            font-family: "HarmoniaSansW01-Bold";
+            font-size: 25px;
+            text: "PC -> outseal plc";
+            color: #340040;
+        }
+
+        bo1 := OutButton { x: 10px; y: 120px; label: "B1 : \{self.checked ? 1 : 0}"; }
+        bo2 := OutButton { x: 10px; y: 180px; label: "B2 : \{self.checked ? 1 : 0}"; }
+        bo3 := OutButton { x: 10px; y: 240px; label: "B3 : \{self.checked ? 1 : 0}"; }
+        bo4 := OutButton { x: 10px; y: 300px; label: "B4 : \{self.checked ? 1 : 0}"; }
+
+        Indicator { x: 300px; y: 120px; on: root.ind1; label: "R9 : \{root.ind1 ? 1 : 0}"; }
+        Indicator { x: 300px; y: 180px; on: root.ind2; label: "R10 : \{root.ind2 ? 1 : 0}"; }
+        Indicator { x: 300px; y: 240px; on: root.ind3; label: "R11 : \{root.ind3 ? 1 : 0}"; }
+        Indicator { x: 300px; y: 300px; on: root.ind4; label: "R12 : \{root.ind4 ? 1 : 0}"; }
+
+        Text {
+            x: 300px;
+            y: 70px;
+            font-family: "HarmoniaSansW01-Bold";
+            font-size: 25px;
+            text: "PC <- outseal plc";
+            color: #340040;
+        }
+
+        Text {
+            x: 10px;
+            y: 400px;
+            font-family: "HarmoniaSansW01-Bold";
+            font-size: 23px;
+            text: root.discrete-text;
+            color: #340040;
+        }
+
+        Text {
+            x: 300px;
+            y: 400px;
+            font-family: "HarmoniaSansW01-Bold";
+            font-size: 23px;
+            text: root.coil-text;
+            color: #340040;
+        }
+    }
+
+    // ============ page2: Analog I/O ============
+    Rectangle {
+        x: 150px;
+        y: 150px;
+        width: 580px;
+        height: 490px;
+        border-width: 5px;
+        background: #07F2F2;
+        border-color: #340040;
+        visible: nav2.checked;
+
+        Text {
+            x: 0px;
+            y: 10px;
+            width: 580px;
+            horizontal-alignment: center;
+            font-family: "HarmoniaSansW01-Bold";
+            font-size: 25px;
+            text: "Outseal Analog I/O";
+            color: #340040;
+        }
+
+        Rectangle {
+            x: 0px;
+            y: 60px;
+            width: 580px;
+            height: 5px;
+            background: #340040;
+        }
+
+        Text {
+            x: 10px;
+            y: 130px;
+            font-family: "HarmoniaSansW01-Bold";
+            font-size: 23px;
+            text: "PC -> Outseal PLC \nMemory Address : I.1 \nHolding Register : 40001";
+            color: #340040;
+        }
+
+        // slider_input (x 330, y 80, 200 x 200)
+        slider-input := CircularSlider {
+            x: 330px;
+            y: 80px;
+            width: 200px;
+            height: 200px;
+            value: 0;
+            start-angle: 40;
+            end-angle: 320;
+            rot: 180;
+            track-width: 5;
+            progress-width: 20;
+            min-value: 0;
+            max-value: 100;
+            progress-color: #F2055C;
+            needle: true;
+        }
+
+        // teks nilai slider (rotasi 180 + offset -40 => tegak, 40px di bawah tengah)
+        Text {
+            x: 330px;
+            y: 200px;
+            width: 200px;
+            height: 40px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            font-family: "HarmoniaSansW01-Bold";
+            font-size: 20pt;
+            text: "\{Math.round(slider-input.value)}";
+            color: #340040;
+        }
+
+        Rectangle {
+            x: 0px;
+            y: 270px;
+            width: 580px;
+            height: 5px;
+            background: #340040;
+        }
+
+        Text {
+            x: 230px;
+            y: 310px;
+            font-family: "HarmoniaSansW01-Bold";
+            font-size: 23px;
+            text: "PC <- Outseal PLC \nMemory Address : I.2 \nHolding Register : 40002";
+            color: #340040;
+        }
+
+        // progressIndicator (x 30, y 290, 180 x 180)
+        progress := CircularSlider {
+            x: 30px;
+            y: 290px;
+            width: 180px;
+            height: 180px;
+            hide-progress: true;
+            hide-track: true;
+            interactive: false;
+            value: 75;
+            min-value: 0;
+            max-value: 100;
+        }
+
+        IndicatorRing {
+            x: 30px;
+            y: 290px;
+            width: 180px;
+            height: 180px;
+            ring-angle: progress.angle;
+        }
+
+        Text {
+            x: 30px;
+            y: 290px;
+            width: 180px;
+            height: 180px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            font-family: "HarmoniaSansW01-Bold";
+            font-size: 20pt;
+            text: "\{Math.round(progress.value)}";
+            color: #340040;
+        }
+    }
+
+    // ============ tmgauge ============
+    Timer {
+        interval: 200ms;
+        running: true;
+        triggered => {
+            if (root.indicator-status(1) == "off") { root.ind1 = false; }
+            if (root.indicator-status(1) == "on") { root.ind1 = true; }
+            if (root.indicator-status(2) == "off") { root.ind2 = false; }
+            if (root.indicator-status(2) == "on") { root.ind2 = true; }
+            if (root.indicator-status(3) == "off") { root.ind3 = false; }
+            if (root.indicator-status(3) == "on") { root.ind3 = true; }
+            if (root.indicator-status(4) == "off") { root.ind4 = false; }
+            if (root.indicator-status(4) == "on") { root.ind4 = true; }
+
+            root.discrete-text = "coils address 128 - 131 : \n[\{bo1.checked ? 1 : 0},\{bo2.checked ? 1 : 0},\{bo3.checked ? 1 : 0},\{bo4.checked ? 1 : 0}]";
+            root.coil-text = "coils address 9 - 12 : \n[\{root.ind1 ? 1 : 0},\{root.ind2 ? 1 : 0},\{root.ind3 ? 1 : 0},\{root.ind4 ? 1 : 0}]";
+
+            root.button(1, bo1.checked ? 1 : 0);
+            root.button(2, bo2.checked ? 1 : 0);
+            root.button(3, bo3.checked ? 1 : 0);
+            root.button(4, bo4.checked ? 1 : 0);
+
+            progress.value = root.sensor();
+            root.slider(Math.round(slider-input.value));
+        }
+    }
+}

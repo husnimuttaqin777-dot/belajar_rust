@@ -1,0 +1,115 @@
+export component MainWindow inherits Window {
+    width: 400px;
+    height: 400px;
+    title: "membuat MINI SCADA HMI";
+    background: black;
+
+    // dipanggil timer tiap 200 ms; Rust menghitung data chart lalu mengisi
+    // line-commands dan x-labels (setara isi tm.onTriggered di QML)
+    callback tick();
+
+    // titik-titik garis (koordinat relatif terhadap plot area, SVG path)
+    in property <string> line-commands: "";
+    // label sumbu X (DateTimeAxis, format "HH:mm:ss.z", 5 tick)
+    in property <[string]> x-labels: ["", "", "", "", ""];
+
+    // area plot chart (harus sama dengan konstanta di main.rs)
+    property <length> plot-x: 45px;
+    property <length> plot-y: 12px;
+    property <length> plot-w: 310px;
+    property <length> plot-h: 360px;
+
+    // Rectangle #47B5FF memenuhi window
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        background: #47B5FF;
+
+        // ChartView cv, backgroundColor #1089FF
+        Rectangle {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            background: #1089FF;
+        }
+    }
+
+    // grid + series di dalam plot area
+    Rectangle {
+        x: root.plot-x;
+        y: root.plot-y;
+        width: root.plot-w;
+        height: root.plot-h;
+        clip: true;
+
+        // grid horizontal (yAxis1: 0..100, 5 tick)
+        for i in 5 : Rectangle {
+            x: 0px;
+            y: i * root.plot-h / 4 - 0.5px;
+            width: root.plot-w;
+            height: 1px;
+            background: #cdcdcd;
+        }
+
+        // grid vertikal (5 tick sumbu waktu)
+        for i in 5 : Rectangle {
+            x: i * root.plot-w / 4 - 0.5px;
+            y: 0px;
+            width: 1px;
+            height: root.plot-h;
+            background: #cdcdcd;
+        }
+
+        // lines1: LineSeries "AIN 0", lebar 4, warna #21209C
+        Path {
+            x: 0px;
+            y: 0px;
+            width: root.plot-w;
+            height: root.plot-h;
+            viewbox-width: root.plot-w / 1px;
+            viewbox-height: root.plot-h / 1px;
+            commands: root.line-commands;
+            stroke: #21209C;
+            stroke-width: 4px;
+            stroke-line-join: round;
+        }
+    }
+
+    // label sumbu Y (labelsColor: yellow)
+    for i in 5 : Text {
+        x: root.plot-x - 40px;
+        y: root.plot-y + root.plot-h - i * root.plot-h / 4 - 8px;
+        width: 34px;
+        height: 16px;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+        font-size: 12px;
+        color: yellow;
+        text: "\{i * 25}";
+    }
+
+    // label sumbu X
+    for i in 5 : Text {
+        x: root.plot-x + i * root.plot-w / 4 - 45px;
+        y: root.plot-y + root.plot-h + 6px;
+        width: 90px;
+        height: 16px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        font-size: 11px;
+        color: #404040;
+        text: root.x-labels[i];
+    }
+
+    // tm: interval 200 ms
+    Timer {
+        interval: 200ms;
+        running: true;
+        triggered => {
+            root.tick();
+        }
+    }
+}
