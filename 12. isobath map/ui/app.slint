@@ -1,0 +1,217 @@
+import { Button } from "std-widgets.slint";
+
+export struct TileItem {
+    x: length,
+    y: length,
+    size: length,
+    source: image,
+}
+
+// Path SVG dalam koordinat piksel layar (sudah diproyeksikan oleh Rust).
+export struct ShapeItem {
+    commands: string,
+    fill: color,
+    stroke: color,
+    stroke-width: length,
+}
+
+export struct CircleItem {
+    x: length,
+    y: length,
+    diameter: length,
+    border: color,
+}
+
+export struct LabelItem {
+    x: length,
+    y: length,
+    text: string,
+    bg: color,
+    border: color,
+    border-width: length,
+}
+
+// Padanan Rectangle + Text (paintedWidth + 10, paintedHeight + 6) di QML.
+component Badge {
+    in property <string> text;
+    in property <color> bg;
+    in property <color> border;
+    in property <length> border-w;
+
+    width: content.preferred-width;
+    height: content.preferred-height;
+
+    Rectangle {
+        background: root.bg;
+        border-color: root.border;
+        border-width: root.border-w;
+        border-radius: 4px;
+    }
+
+    content := HorizontalLayout {
+        padding-left: 5px;
+        padding-right: 5px;
+        padding-top: 3px;
+        padding-bottom: 3px;
+        Text {
+            text: root.text;
+            color: black;
+            font-size: 13px;
+            font-weight: 700;
+        }
+    }
+}
+
+export component MainWindow inherits Window {
+    title: "Trenching Route";
+    preferred-width: 1000px;
+    preferred-height: 700px;
+    background: #e5e3df;
+
+    in property <[TileItem]> tiles;
+    in property <[ShapeItem]> polygons;
+    in property <[LabelItem]> iso-labels;
+    in property <[CircleItem]> circles;
+    in property <[ShapeItem]> lines;
+    in property <[LabelItem]> wp-labels;
+    in property <string> status;
+
+    out property <length> map-width: map.width;
+    out property <length> map-height: map.height;
+
+    callback viewport-changed();
+    callback drag-start();
+    callback drag-move(length, length);
+    callback zoom-at(float, length, length);
+
+    map := Rectangle {
+        clip: true;
+
+        init => { root.viewport-changed(); }
+        changed width => { root.viewport-changed(); }
+        changed height => { root.viewport-changed(); }
+
+        for t in root.tiles: Image {
+            x: t.x;
+            y: t.y;
+            width: t.size;
+            height: t.size;
+            source: t.source;
+        }
+
+        for s in root.polygons: Path {
+            x: 0px;
+            y: 0px;
+            width: map.width;
+            height: map.height;
+            viewbox-x: 0;
+            viewbox-y: 0;
+            viewbox-width: map.width / 1px;
+            viewbox-height: map.height / 1px;
+            commands: s.commands;
+            fill: s.fill;
+            stroke: s.stroke;
+            stroke-width: s.stroke-width;
+        }
+
+        for l in root.iso-labels: Badge {
+            x: l.x;
+            y: l.y;
+            text: l.text;
+            bg: l.bg;
+            border: l.border;
+            border-w: l.border-width;
+        }
+
+        for c in root.circles: Rectangle {
+            x: c.x;
+            y: c.y;
+            width: c.diameter;
+            height: c.diameter;
+            background: #46a2da;
+            border-color: c.border;
+            border-width: min(3px, c.diameter / 2);
+            border-radius: c.diameter / 2;
+        }
+
+        for s in root.lines: Path {
+            x: 0px;
+            y: 0px;
+            width: map.width;
+            height: map.height;
+            viewbox-x: 0;
+            viewbox-y: 0;
+            viewbox-width: map.width / 1px;
+            viewbox-height: map.height / 1px;
+            commands: s.commands;
+            stroke: s.stroke;
+            stroke-width: s.stroke-width;
+        }
+
+        for l in root.wp-labels: Badge {
+            x: l.x;
+            y: l.y;
+            text: l.text;
+            bg: l.bg;
+            border: l.border;
+            border-w: l.border-width;
+        }
+
+        // Drag = geser peta, scroll / klik dua kali = zoom (seperti Map di QML).
+        TouchArea {
+            pointer-event(e) => {
+                if e.button == PointerEventButton.left && e.kind == PointerEventKind.down {
+                    root.drag-start();
+                }
+            }
+            moved => {
+                root.drag-move(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+            }
+            double-clicked => {
+                root.zoom-at(1.0, self.mouse-x, self.mouse-y);
+            }
+            scroll-event(e) => {
+                root.zoom-at(e.delta-y / 240px, self.mouse-x, self.mouse-y);
+                EventResult.accept
+            }
+        }
+
+        Rectangle {
+            x: 8px;
+            y: parent.height - self.height - 8px;
+            height: 22px;
+            width: st.preferred-width + 12px;
+            background: #ffffffcc;
+            border-radius: 3px;
+            st := Text {
+                text: root.status;
+                font-size: 11px;
+                color: #333333;
+            }
+        }
+
+        Rectangle {
+            x: parent.width - self.width - 8px;
+            y: parent.height - self.height - 8px;
+            height: 22px;
+            width: at.preferred-width + 12px;
+            background: #ffffffcc;
+            border-radius: 3px;
+            at := Text {
+                text: "© OpenStreetMap contributors";
+                font-size: 11px;
+                color: #333333;
+            }
+        }
+
+        VerticalLayout {
+            x: 10px;
+            y: 10px;
+            width: 36px;
+            height: 76px;
+            spacing: 4px;
+            Button { text: "+"; clicked => { root.zoom-at(1.0, map.width / 2, map.height / 2); } }
+            Button { text: "−"; clicked => { root.zoom-at(-1.0, map.width / 2, map.height / 2); } }
+        }
+    }
+}
