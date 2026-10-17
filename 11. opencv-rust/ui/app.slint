@@ -1,0 +1,72 @@
+
+import { Button, VerticalBox, HorizontalBox } from "std-widgets.slint";
+
+export component MainWindow inherits Window {
+    title: "Rust OpenCV Webcam";
+    width: 900px;
+    height: 650px;
+    background: #20242b;
+
+    in-out property <image> camera_image;
+    in-out property <string> status: "Kamera siap";
+    in-out property <string> resolution: "Resolusi: -";
+
+    callback start-camera();
+    callback stop-camera();
+
+    VerticalBox {
+        padding: 16px;
+        spacing: 12px;
+
+        Text {
+            text: "RUST + OPENCV WEBCAM";
+            color: white;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        Rectangle {
+            background: #111318;
+            border-radius: 8px;
+            clip: true;
+            min-height: 420px;
+
+            Image {
+                source: root.camera_image;
+                width: parent.width;
+                height: parent.height;
+                image-fit: contain;
+            }
+        }
+
+        HorizontalBox {
+            spacing: 12px;
+
+            Button {
+                text: "Start Camera";
+                clicked => {
+                    root.start-camera();
+                }
+            }
+
+            Button {
+                text: "Stop Camera";
+                clicked => {
+                    root.stop-camera();
+                }
+            }
+        }
+
+        Text {
+            text: root.status;
+            color: #8ee6a0;
+            font-size: 15px;
+        }
+
+        Text {
+            text: root.resolution;
+            color: #c4c8d0;
+            font-size: 13px;
+        }
+    }
+}

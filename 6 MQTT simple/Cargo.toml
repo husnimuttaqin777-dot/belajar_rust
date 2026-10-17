@@ -1,0 +1,12 @@
+[package]
+name = "iot_slint"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+slint = "1.8"
+rumqttc = "0.24"
+
+[build-dependencies]
+slint-build = "1.8"

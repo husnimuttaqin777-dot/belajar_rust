@@ -1,0 +1,73 @@
+export component MainWindow inherits Window {
+    title: "membuat windows";
+    background: #000080;
+
+    // ukuran tetap 400x400 (seperti main_1.qml)
+    preferred-width: 400px;
+    preferred-height: 400px;
+    min-width: 400px;
+    max-width: 400px;
+    min-height: 400px;
+    max-height: 400px;
+
+    in property <string> message: "message";
+    in property <string> status: "MQTT: connecting...";
+    in-out property <bool> lamp-checked: true;
+
+    // kirim "on" / "off" ke topic "led"
+    callback lamp-clicked(string);
+
+    Text {
+        x: 10px;
+        y: 5px;
+        text: " IoT";
+        color: white;
+        font-size: 24px;
+    }
+
+    // isi pesan dari topic "sensor"
+    Text {
+        x: 10px;
+        y: 100px;
+        text: root.message;
+        color: white;
+        font-size: 24px;
+    }
+
+    // tombol LAMPU 150x150, di tengah, y = 200
+    Rectangle {
+        x: (root.width - self.width) / 2;
+        y: 200px;
+        width: 150px;
+        height: 150px;
+        border-radius: 6px;
+        background: root.lamp-checked ? #00FF00 : #00B300;
+        border-width: 2px;
+        border-color: ta.pressed ? white : transparent;
+
+        Text {
+            text: "LAMPU";
+            color: black;
+            font-size: 18px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        ta := TouchArea {
+            clicked => {
+                root.lamp-checked = !root.lamp-checked;
+                // sama seperti QML: checked -> "off", tidak checked -> "on"
+                root.lamp-clicked(root.lamp-checked ? "off" : "on");
+            }
+        }
+    }
+
+    // status koneksi (tambahan kecil)
+    Text {
+        x: 10px;
+        y: 375px;
+        text: root.status;
+        color: #b0b0ff;
+        font-size: 12px;
+    }
+}

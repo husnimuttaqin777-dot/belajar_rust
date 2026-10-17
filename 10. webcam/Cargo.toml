@@ -1,0 +1,15 @@
+[package]
+name = "webcam_slint"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+slint = "1.8"
+nokhwa = { version = "0.10", features = ["input-native"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+chrono = "0.4"
+
+[build-dependencies]
+slint-build = "1.8"
+

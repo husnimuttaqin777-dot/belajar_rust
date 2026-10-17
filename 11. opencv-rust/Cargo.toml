@@ -1,0 +1,13 @@
+[package]
+name = "webcam_slint_opencv"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+slint = "1.8"
+chrono = "0.4"
+opencv = { version = "0.101", features = ["clang-runtime"] }
+
+[build-dependencies]
+slint-build = "1.8"

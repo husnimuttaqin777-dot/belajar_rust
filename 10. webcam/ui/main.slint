@@ -1,0 +1,81 @@
+import { Button, ComboBox } from "std-widgets.slint";
+
+export component MainWindow inherits Window {
+    title: "WEBCAM CAMERA";
+    background: #745433;
+
+
+    // ukuran tetap 500x500
+    preferred-width: 500px;
+    preferred-height: 500px;
+    min-width: 500px;
+    max-width: 500px;
+    min-height: 500px;
+    max-height: 500px;
+
+    in-out property <bool> camera-on: false;
+    in property <image> camera-image;
+    in property <string> status;
+
+    callback camera-toggled(bool, int);
+    callback capture-clicked();
+
+    // area kamera 300x300
+    Rectangle {
+        x: 100px;
+        y: 50px;
+        width: 300px;
+        height: 300px;
+        background: root.camera-on ? white : transparent;
+
+        Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.camera-image;
+            image-fit: fill;
+            visible: root.camera-on;
+        }
+
+        // pesan error ditampilkan di area kamera saat kamera OFF
+        Text {
+            width: parent.width;
+            height: parent.height;
+            text: root.status;
+            color: #ffb4b4;
+            wrap: word-wrap;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            visible: !root.camera-on;
+        }
+    }
+
+    // tombol capture 300x70, hanya muncul saat kamera ON
+    Button {
+        x: 100px;
+        y: 370px;
+        width: 300px;
+        height: 70px;
+        text: "capture";
+        visible: root.camera-on;
+        clicked => { root.capture-clicked(); }
+    }
+
+    cb := ComboBox {
+        x: 100px;
+        y: 450px;
+        width: 180px;
+        model: ["webcam internal", "usb camera"];
+        current-index: 0;
+    }
+
+    Button {
+        x: 300px;
+        y: 450px;
+        text: "Camera Switch";
+        primary: root.camera-on;
+        clicked => {
+            root.camera-on = !root.camera-on;
+            root.camera-toggled(root.camera-on, cb.current-index);
+        }
+    }
+}
