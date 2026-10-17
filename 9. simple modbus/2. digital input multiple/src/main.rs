@@ -1,0 +1,148 @@
+// ###### PROGRAM MEMANGGIL WINDOWS SLINT (versi Rust) ##########################
+
+use rmodbus::{client::ModbusRequest, ModbusProto};
+use std::io::{self, Read, Write};
+use std::sync::Mutex;
+use std::thread;
+use std::time::Duration;
+
+slint::include_modules!();
+
+//###############DECLARE VARIABLES#############//
+static INDICATOR1_STATUS: Mutex<String> = Mutex::new(String::new());
+static INDICATOR2_STATUS: Mutex<String> = Mutex::new(String::new());
+
+//---------------SCAN AVAILABLE MODBUS PORT -------------------//
+fn serial_ports() -> Vec<String> {
+    // Setara serial_ports() di Python: hanya port yang bisa dibuka
+    let mut result = Vec::new();
+    if let Ok(ports) = serialport::available_ports() {
+        for p in ports {
+            if serialport::new(&p.port_name, 9600).open().is_ok() {
+                result.push(p.port_name);
+            }
+        }
+    }
+    result
+}
+
+fn input(prompt: &str) -> String {
+    print!("{}", prompt);
+    io::stdout().flush().unwrap();
+    let mut s = String::new();
+    io::stdin().read_line(&mut s).unwrap();
+    s.trim().to_string()
+}
+
+//------MODBUS RTU: kirim request, baca response------------------//
+type Port = Box<dyn serialport::SerialPort>;
+type BoxErr = Box<dyn std::error::Error>;
+
+// Baca satu frame respon RTU untuk fungsi read (0x01 / 0x03)
+fn transact(port: &mut Port, request: &[u8]) -> Result<Vec<u8>, BoxErr> {
+    port.clear(serialport::ClearBuffer::Input)?;
+    port.write_all(request)?;
+
+    let mut response = vec![0u8; 2]; // unit + function
+    port.read_exact(&mut response)?;
+
+    if response[1] & 0x80 != 0 {
+        // exception response: 1 byte kode + 2 byte CRC
+        let mut rest = vec![0u8; 3];
+        port.read_exact(&mut rest)?;
+        response.extend(rest);
+    } else {
+        // byte count + data + 2 byte CRC
+        let mut count = [0u8; 1];
+        port.read_exact(&mut count)?;
+        let mut rest = vec![0u8; count[0] as usize + 2];
+        port.read_exact(&mut rest)?;
+        response.push(count[0]);
+        response.extend(rest);
+    }
+    Ok(response)
+}
+
+// client.read_coils(address, count, unit)
+fn read_coils(port: &mut Port, unit: u8, address: u16, count: u16) -> Result<Vec<bool>, BoxErr> {
+    let mut mreq = ModbusRequest::new(unit, ModbusProto::Rtu);
+    let mut request = Vec::new();
+    mreq.generate_get_coils(address, count, &mut request)?;
+    let response = transact(port, &request)?;
+    let mut bits = Vec::new();
+    mreq.parse_bool(&response, &mut bits)?;
+    Ok(bits)
+}
+
+// client.read_holding_registers(address, count, unit)
+fn read_holding_registers(
+    port: &mut Port,
+    unit: u8,
+    address: u16,
+    count: u16,
+) -> Result<Vec<u16>, BoxErr> {
+    let mut mreq = ModbusRequest::new(unit, ModbusProto::Rtu);
+    let mut request = Vec::new();
+    mreq.generate_get_holdings(address, count, &mut request)?;
+    let response = transact(port, &request)?;
+    let mut regs = Vec::new();
+    mreq.parse_u16(&response, &mut regs)?;
+    Ok(regs)
+}
+
+//------MEMPROSES DATA MODBUS ------------------------------------//
+fn modbus_data_process(mut port: Port, slave_id: u8) {
+    loop {
+        let request_coil = read_coils(&mut port, slave_id, 0, 15);
+        let _request = read_holding_registers(&mut port, slave_id, 0, 0x7);
+
+        match &request_coil {
+            Ok(bits) => println!("{:?}", bits.iter().map(|&b| b as u8).collect::<Vec<u8>>()),
+            Err(e) => println!("request_coil error: {}", e),
+        }
+
+        // setara try/except: kalau gagal / data kurang, lewati saja
+        if let Ok(bits) = request_coil {
+            if bits.len() > 11 {
+                println!(
+                    "{} {} {} {}",
+                    bits[8] as u8, bits[9] as u8, bits[10] as u8, bits[11] as u8
+                );
+                let mut status = INDICATOR1_STATUS.lock().unwrap();
+                *status = if !bits[8] { "off".into() } else { "on".into() };
+
+                let mut status2 = INDICATOR2_STATUS.lock().unwrap();
+                *status2 = if !bits[9] { "off".into() } else { "on".into() };
+                print!("{}", status2.as_str());
+            }
+        }
+    }
+}
+
+//########## main ######################//
+fn main() {
+    println!("{:?}", serial_ports());
+
+    let port_name = input("modbus port : ");
+    let baudrate = input("modbus baudrate : ");
+    let slave_id = input("slave id : ");
+
+    let port = serialport::new(&port_name, baudrate.parse::<u32>().unwrap())
+        .data_bits(serialport::DataBits::Eight)
+        .parity(serialport::Parity::None)
+        .stop_bits(serialport::StopBits::One)
+        .timeout(Duration::from_secs(4))
+        .open()
+        .expect("gagal membuka port modbus");
+
+    let slave_id: u8 = slave_id.parse().unwrap();
+    let _t1 = thread::spawn(move || modbus_data_process(port, slave_id));
+
+    let ui = MainWindow::new().unwrap();
+
+    // PROGRAM UNTUK MENGIRIM DATA KE UI
+    ui.on_indicator1_status(|| INDICATOR1_STATUS.lock().unwrap().clone().into());
+    ui.on_indicator2_status(|| INDICATOR2_STATUS.lock().unwrap().clone().into());
+
+    ui.run().unwrap();
+}
