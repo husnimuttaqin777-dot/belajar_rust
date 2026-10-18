@@ -7,19 +7,34 @@ use std::rc::Rc;
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use rumqttc::{Client, Event, MqttOptions, Packet, QoS};
 
-use slint::{Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, Timer, TimerMode, VecModel};
+use slint::{Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, Timer, TimerMode, VecModel, Weak};
+
 
 slint::include_modules!();
 
+// ---------------------------------------------------------------
+// Konfigurasi MQTT 
+// ---------------------------------------------------------------
+const BROKER: &str = "127.0.0.1";
+const PORT: u16 = 1883;
+const CLIENT_ID: &str = "PC_1";
+const TOPIC_SUB: &str = "sensor";
+const TOPIC_LAT: &str = "lat";
+
+
+
+
 // ---------------- pengaturan ----------------
-const START_LAT: f64 = -2.75819;
-const START_LON: f64 = 105.787;
+//const START_LAT: f64 = -2.75819;
+//const START_LON: f64 = 105.787;
+//const HEADING:f32 = 0.0; // arah marker awal (derajat, 0° = utara, searah jarum jam)
 const START_ZOOM: i32 = 14;
 const MIN_ZOOM: i32 = 3;
 const MAX_ZOOM: i32 = 19;
 const TRACK_MAX: usize = 500; // titik track maksimum
-const SIMULATE: bool = true; // true = marker berputar mengelilingi titik awal (demo)
+//const SIMULATE: bool = true; // true = marker berputar mengelilingi titik awal (demo)
 const USER_AGENT: &str = "PetaGUI/1.0 (Rust Slint demo)"; // wajib diisi sesuai kebijakan OSM
 
 type TileKey = (i32, i32, i32); // zoom, x, y
@@ -39,6 +54,13 @@ fn to_latlon(wx: f64, wy: f64) -> (f64, f64) {
     let lat = (PI * (1.0 - 2.0 * wy)).sinh().atan().to_degrees();
     (lat, lon)
 }
+
+
+fn set_status(ui: &Weak<MainWindow>, text: &str) {
+    let text = text.to_string();
+    let _ = ui.upgrade_in_event_loop(move |ui| ui.set_status(text.into()));
+}
+
 
 // ---------------- state ----------------
 struct State {
@@ -76,25 +98,21 @@ impl State {
         (self.wx + (x - self.w / 2.0) / s, self.wy + (y - self.h / 2.0) / s)
     }
 
-    fn set_position(&mut self, lat: f64, lon: f64) {
+    fn set_position(&mut self, lat: f64, lon: f64, heading: f32) {
         let (wx, wy) = to_world(lat, lon);
-        let (ox, oy) = to_world(self.lat, self.lon);
-        let (dx, dy) = (wx - ox, oy - wy); // utara = atas
-        if dx.hypot(dy) > 1e-9 {
-            self.heading = dx.atan2(dy).to_degrees() as f32; // 0° = utara, searah jarum jam
-        }
-        self.lat = lat;
-        self.lon = lon;
-        self.track.push((wx, wy));
-        if self.track.len() > TRACK_MAX {
-            self.track.remove(0);
-        }
-        if self.follow {
-            self.wx = wx;
-            self.wy = wy;
+            self.heading = heading;
+            self.lat = lat;
+            self.lon = lon;
+            self.track.push((wx, wy));
+            if self.track.len() > TRACK_MAX {
+                self.track.remove(0);
+            }
+            if self.follow {
+                self.wx = wx;
+                self.wy = wy;
+            }
         }
     }
-}
 
 // ---------------- gambar ulang ----------------
 fn path_cmd(st: &State, pts: &[(f64, f64)]) -> String {
@@ -236,6 +254,89 @@ impl App {
 
 fn main() -> Result<(), slint::PlatformError> {
     let ui = MainWindow::new()?;
+    
+    // ---- MQTT client (setara paho.Client + loop_start) ----
+    let mut opts = MqttOptions::new(CLIENT_ID, BROKER, PORT);
+    opts.set_keep_alive(Duration::from_secs(60));
+    let (client, mut connection) = Client::new(opts, 16);
+
+    println!("connecting to broker {BROKER}");
+    let (pos_tx, pos_rx) = mpsc::channel::<(f64, f64, f32)>();
+    // thread jaringan (setara client.loop_start + on_message)
+    {
+        let ui_weak = ui.as_weak();
+        let sub_client = client.clone();
+        
+        let pos_tx_mqtt = pos_tx.clone();
+        thread::spawn(move || {
+            let mut lat: f64 = START_LAT;
+            let mut lon: f64 = START_LON;
+            let mut heading: f32 = HEADING;
+
+            for event in connection.iter() {
+                match event {
+                    Ok(Event::Incoming(Packet::ConnAck(_))) => {
+                        println!("{BROKER} connected");
+                        let _ = sub_client.try_subscribe(TOPIC_SUB, QoS::AtMostOnce);
+                        let _ = sub_client.try_subscribe(TOPIC_LAT, QoS::AtMostOnce);
+                        let _ = sub_client.try_subscribe("lon", QoS::AtMostOnce);
+                        let _ = sub_client.try_subscribe("heading", QoS::AtMostOnce);
+                        set_status(&ui_weak, &format!("MQTT: connected ({BROKER}:{PORT})"));
+                    }
+
+                    Ok(Event::Incoming(Packet::Publish(p))) => {
+                        let msg = String::from_utf8_lossy(&p.payload).trim().to_string();
+                        let mut changed = false;
+
+                        match p.topic.as_str() {
+                            TOPIC_SUB => println!("sensor: {msg}"),
+                            TOPIC_LAT => {
+                                if let Ok(v) = msg.parse::<f64>() {
+                                    lat = v;
+                                    changed = true;
+                                }
+                            }
+                            "lon" => {
+                                if let Ok(v) = msg.parse::<f64>() {
+                                    lon = v;
+                                    changed = true;
+                                }
+                            }
+                            "heading" => {
+                                if let Ok(v) = msg.parse::<f32>() {
+                                    heading = v;
+                                    changed = true;
+                                }
+                            }
+                            _ => {}
+                        }
+
+                        // kirim hanya kalau ada nilai yang benar-benar berubah
+                        if changed {
+                            let _ = pos_tx_mqtt.send((lat, lon, heading));
+                        }
+                    }
+
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("MQTT error: {e}");
+                        set_status(&ui_weak, "MQTT: disconnected, retrying...");
+                        thread::sleep(Duration::from_secs(2));
+                    }
+                }
+            }
+        });
+   
+    }
+    
+    
+    
+    
+
+    
+    const START_LAT: f64 = -3.75819;
+    const START_LON: f64 = 105.787;
+    const HEADING: f32 = 90.0; // arah marker awal (derajat, 0° = utara, searah jarum jam)
 
     let (wx, wy) = to_world(START_LAT, START_LON);
     let st = Rc::new(RefCell::new(State {
@@ -246,7 +347,7 @@ fn main() -> Result<(), slint::PlatformError> {
         h: 0.0,
         lat: START_LAT,
         lon: START_LON,
-        heading: 0.0,
+        heading: HEADING,
         track: Vec::new(),
         route: Vec::new(),
         follow: true,
@@ -261,18 +362,21 @@ fn main() -> Result<(), slint::PlatformError> {
 
     // Kirim posisi baru lewat pos_tx dari thread mana saja
     // (serial, MQTT, dst): pos_tx.send((lat, lon)).
-    let (pos_tx, pos_rx) = mpsc::channel::<(f64, f64)>();
+   
+    /*
     if SIMULATE {
         let tx = pos_tx.clone();
         thread::spawn(move || {
             let mut t = 0.0f64;
             loop {
-                t += 0.01;
+                t += 0.0;
                 let _ = tx.send((START_LAT + 0.01 * t.sin(), START_LON + 0.01 * t.cos()));
                 thread::sleep(Duration::from_secs(1));
+                print(_)
             }
         });
     }
+    */
 
     let app = App { st: st.clone(), jobs: job_tx, weak: ui.as_weak() };
 
@@ -402,8 +506,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 }
 
-                while let Ok((lat, lon)) = pos_rx.try_recv() {
-                    st.set_position(lat, lon);
+                while let Ok((lat, lon, heading)) = pos_rx.try_recv() {
+                    st.set_position(lat, lon, heading);
                     dirty = true;
                 }
             }

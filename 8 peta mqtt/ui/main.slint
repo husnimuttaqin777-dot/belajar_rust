@@ -4,6 +4,7 @@ export struct TileItem { x: length, y: length, img: image }
 export struct PinItem  { x: length, y: length, label: string }
 
 export component MainWindow inherits Window {
+    in property <string> status;
     title: "map";
     preferred-width: 800px;
     preferred-height: 600px;
@@ -106,7 +107,7 @@ export component MainWindow inherits Window {
             height: 33px;
             x: root.marker-x - 16.5px;
             y: root.marker-y - 16.5px;
-            rotation-angle: root.heading;
+            transform-rotation: root.heading;
         }
 
         // area sentuh / mouse (drag = geser, scroll = zoom)
