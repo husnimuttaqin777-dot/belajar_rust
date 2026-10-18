@@ -1,0 +1,132 @@
+import { Slider, CheckBox, Button } from "std-widgets.slint";
+
+component LegendItem inherits Rectangle {
+    in property <string> label;
+    in property <color> swatch;
+    height: 22px;
+
+    Rectangle {
+        x: 0px;
+        y: 3px;
+        width: 16px;
+        height: 16px;
+        border-radius: 3px;
+        background: root.swatch;
+    }
+    Text {
+        x: 24px;
+        text: root.label;
+        color: white;
+        font-size: 14px;
+        vertical-alignment: center;
+    }
+}
+
+export component MainWindow inherits Window {
+    title: "3D Visualizer - Balok, Silinder, Bola";
+    background: #12142a;
+
+    preferred-width: 780px;
+    preferred-height: 520px;
+    min-width: 780px;
+    max-width: 780px;
+    min-height: 520px;
+    max-height: 520px;
+
+    in property <image> frame;
+    in-out property <bool> auto-rotate: true;
+    in-out property <float> zoom: 8.5;
+    in-out property <float> shape-size: 1.0;
+
+    callback drag-started();
+    callback dragging(float, float);
+    callback params-changed();
+    callback reset-view();
+
+    // area render 3D (540x500) + drag mouse untuk memutar kamera
+    Rectangle {
+        x: 10px;
+        y: 10px;
+        width: 540px;
+        height: 500px;
+        background: #0b0d1a;
+        clip: true;
+
+        Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.frame;
+            image-fit: fill;
+        }
+
+        TouchArea {
+            mouse-cursor: self.pressed ? MouseCursor.grabbing : MouseCursor.grab;
+            pointer-event(e) => {
+                if (e.button == PointerEventButton.left && e.kind == PointerEventKind.down) {
+                    root.drag-started();
+                }
+            }
+            moved => {
+                if (self.pressed) {
+                    root.dragging(
+                        (self.mouse-x - self.pressed-x) / 1px,
+                        (self.mouse-y - self.pressed-y) / 1px
+                    );
+                }
+            }
+        }
+    }
+
+    // panel kontrol
+    VerticalLayout {
+        x: 570px;
+        y: 14px;
+        width: 200px;
+        spacing: 12px;
+        alignment: start;
+
+        Text {
+            text: "3D Visualizer";
+            color: white;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        Text {
+            text: "Drag mouse pada area 3D untuk memutar kamera.";
+            color: #9aa0d0;
+            font-size: 12px;
+            wrap: word-wrap;
+        }
+
+        LegendItem { label: "Balok";    swatch: #ff8a3d; }
+        LegendItem { label: "Silinder"; swatch: #3dc8ff; }
+        LegendItem { label: "Bola";     swatch: #7bed6b; }
+
+        CheckBox {
+            text: "Auto rotate";
+            checked <=> root.auto-rotate;
+        }
+
+        Text { text: "Zoom (jarak kamera)"; color: white; font-size: 13px; }
+        Slider {
+            minimum: 4;
+            maximum: 14;
+            value <=> root.zoom;
+            changed(v) => { root.params-changed(); }
+        }
+
+        Text { text: "Ukuran bentuk"; color: white; font-size: 13px; }
+        Slider {
+            minimum: 0.5;
+            maximum: 1.4;
+            value <=> root.shape-size;
+            changed(v) => { root.params-changed(); }
+        }
+
+        Button {
+            text: "Reset view";
+            clicked => { root.reset-view(); }
+        }
+    }
+}

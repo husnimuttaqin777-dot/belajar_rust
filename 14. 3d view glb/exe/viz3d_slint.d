@@ -1,0 +1,1 @@
+D:\cargo-target\release\viz3d_slint.exe: D:\BENCHMARK\ RUST\ GUI\14.\ 3d\ view\ glb\build.rs D:\BENCHMARK\ RUST\ GUI\14.\ 3d\ view\ glb\src\main.rs D:\BENCHMARK\ RUST\ GUI\14.\ 3d\ view\ glb\ui/app.slint D:\cargo-target\release\build\viz3d_slint-de3ea181c1493a68\out\app.rs
