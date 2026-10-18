@@ -1,0 +1,61 @@
+// tombol hijau dengan teks hitam (setara Button + palette di QML)
+component ShowButton inherits Rectangle {
+    in property <string> text: "show";
+    callback clicked();
+
+    width: 100px;
+    height: 40px;
+    border-radius: 4px;
+    background: ta.pressed ? #00B300 : #00FF00;
+
+    Text {
+        text: root.text;
+        color: black;
+        font-size: 14px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// window utama
+export component MainWindow inherits Window {
+    title: "membuat windows";
+    background: #FF96C5;
+    preferred-width: 400px;
+    preferred-height: 400px;
+
+    callback show-red();
+    callback show-blue();
+
+    ShowButton {
+        x: 0px;
+        y: 0px;
+        clicked => { root.show-red(); }
+    }
+
+    ShowButton {
+        x: 200px;
+        y: 0px;
+        clicked => { root.show-blue(); }
+    }
+}
+
+// window merah (wnd1)
+export component RedWindow inherits Window {
+    title: "red window";
+    background: red;
+    preferred-width: 400px;
+    preferred-height: 400px;
+}
+
+// window biru (wnd2)
+export component BlueWindow inherits Window {
+    title: "blue window";
+    background: blue;
+    preferred-width: 400px;
+    preferred-height: 400px;
+}
