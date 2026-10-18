@@ -1,0 +1,16 @@
+[package]
+name = "peta_gui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+slint = "1.8"
+ureq = "2"
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[build-dependencies]
+slint-build = "1.8"
+
+# decode PNG tile di mode debug jadi cepat
+[profile.dev.package."*"]
+opt-level = 3
