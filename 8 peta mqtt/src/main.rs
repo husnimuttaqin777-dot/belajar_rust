@@ -32,7 +32,7 @@ const TOPIC_LAT: &str = "lat";
 //const HEADING:f32 = 0.0; // arah marker awal (derajat, 0° = utara, searah jarum jam)
 const START_ZOOM: i32 = 14;
 const MIN_ZOOM: i32 = 3;
-const MAX_ZOOM: i32 = 19;
+const MAX_ZOOM: i32 = 18;
 const TRACK_MAX: usize = 500; // titik track maksimum
 //const SIMULATE: bool = true; // true = marker berputar mengelilingi titik awal (demo)
 const USER_AGENT: &str = "PetaGUI/1.0 (Rust Slint demo)"; // wajib diisi sesuai kebijakan OSM
@@ -189,30 +189,64 @@ fn refresh(st: &mut State, ui: &MainWindow, jobs: &mpsc::Sender<TileKey>) {
 }
 
 // ---------------- download tile (2 thread, sesuai batas OSM) ----------------
-fn load_tile((z, x, y): TileKey) -> Result<SharedPixelBuffer<Rgba8Pixel>, Box<dyn std::error::Error>> {
+
+
+fn load_tile(
+    (z, x, y): TileKey,
+) -> Result<SharedPixelBuffer<Rgba8Pixel>, Box<dyn std::error::Error>> {
     let path = PathBuf::from(format!("tile_cache/{z}/{x}/{y}.png"));
+
     let bytes = match std::fs::read(&path) {
-        Ok(b) => b, // sudah ada di cache disk
+        Ok(b) => b,
+
         Err(_) => {
-            let url = format!("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
+            // Esri World Imagery (satelit)
+            let url = format!("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}");
+
+            //topographic
+            //let url = format!("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}");
+
+            // OpenStreetMap
+            //let url = format!("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
+
+            // Ocean Base
+            //let url = format!("https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}");
+
             let mut buf = Vec::new();
+
             ureq::get(&url)
                 .set("User-Agent", USER_AGENT)
                 .timeout(Duration::from_secs(10))
                 .call()?
                 .into_reader()
                 .read_to_end(&mut buf)?;
+
             if let Some(dir) = path.parent() {
                 let _ = std::fs::create_dir_all(dir);
             }
+
             let _ = std::fs::write(&path, &buf);
+
             buf
         }
     };
-    let img = image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)?.to_rgba8();
+
+    let img =
+        image::load_from_memory(&bytes)?.to_rgba8();
+
     let (w, h) = img.dimensions();
-    Ok(SharedPixelBuffer::clone_from_slice(img.as_raw(), w, h))
+
+    Ok(SharedPixelBuffer::clone_from_slice(
+        img.as_raw(),
+        w,
+        h,
+    ))
 }
+
+
+
+
+
 
 fn spawn_workers(jobs: mpsc::Receiver<TileKey>, out: mpsc::Sender<TileResult>) {
     let jobs = Arc::new(Mutex::new(jobs));
