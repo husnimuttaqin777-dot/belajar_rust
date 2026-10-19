@@ -1,0 +1,297 @@
+import { Button, Slider } from "std-widgets.slint";
+
+export struct TileItem { x: length, y: length, img: image }
+export struct PinItem  { x: length, y: length, label: string }
+
+export component MainWindow inherits Window {
+    in property <string> status;
+    title: "map";
+    preferred-width: 800px;
+    preferred-height: 600px;
+    background: #958c8c;
+
+    // ---- data dari Rust ----
+    in property <string> lat-text: "-";
+    in property <string> lon-text: "-";
+    in property <[TileItem]> tiles;
+    in property <[PinItem]> pins;          // waypoint tekan-tahan (md)
+    in property <string> track-path;       // jalur track (line1)
+    in property <string> route-path;       // jalur waypoint (line)
+    in property <length> marker-x;
+    in property <length> marker-y;
+    in property <angle> heading: 0deg;
+    in property <string> hover-text;
+    in property <length> layer-size;       // sisi layer peta (diagonal jendela)
+    in property <angle> bearing: 0deg;     // bearing peta
+
+    // ---- event ke Rust ----
+    callback pointer(float, float, bool);  // x, y, sedang ditekan
+    callback long-press(float, float);
+    callback double-tap(float, float);
+    callback zoom(int, float, float);      // arah, x, y
+    callback clear-all();
+    callback center-on-marker();
+    callback bearing-edited(float);        // slider bearing (derajat)
+    callback reset-north();
+
+    property <bool> lp-armed: false;
+    property <length> press-x;
+    property <length> press-y;
+
+    // tekan-tahan 600 ms (setara onPressAndHold di QML)
+    Timer {
+        interval: 600ms;
+        running: root.lp-armed;
+        triggered => {
+            root.lp-armed = false;
+            root.long-press(root.press-x / 1px, root.press-y / 1px);
+        }
+    }
+
+    Rectangle {
+        width: root.width;
+        height: root.height;
+        background: #e8e4dc;
+        clip: true;
+
+        // layer peta: sebesar diagonal jendela, diputar mengelilingi pusat layar
+        Rectangle {
+            width: root.layer-size;
+            height: root.layer-size;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            transform-rotation: -root.bearing;
+
+        // tile OSM
+        for t in root.tiles : Image {
+            x: t.x;
+            y: t.y;
+            width: 257px;   // tumpang tindih 1px agar tidak ada garis tipis antar tile
+            height: 257px;
+            source: t.img;
+        }
+
+        // garis waypoint
+        Path {
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: self.width / 1px;
+            viewbox-height: self.height / 1px;
+            commands: root.route-path;
+            stroke: #1e63ff;
+            stroke-width: 3px;
+            stroke-line-join: round;
+        }
+
+        // garis track
+        Path {
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: self.width / 1px;
+            viewbox-height: self.height / 1px;
+            commands: root.track-path;
+            stroke: #e53935;
+            stroke-width: 3px;
+            stroke-line-join: round;
+        }
+
+        // nomor waypoint
+        for p in root.pins : Rectangle {
+            x: p.x - 10px;
+            y: p.y - 10px;
+            width: 20px;
+            height: 20px;
+            border-radius: 10px;
+            background: #1e63ff;
+            Text {
+                text: p.label;
+                transform-rotation: root.bearing;
+                color: white;
+                font-size: 11px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        // marker panah (navigasi.png), berputar mengikuti arah gerak
+        Image {
+            source: @image-url("navigasi.png");
+            width: 33px;
+            height: 33px;
+            x: root.marker-x - 16.5px;
+            y: root.marker-y - 16.5px;
+            transform-rotation: root.heading;
+        }
+
+        }
+
+        // area sentuh / mouse (drag = geser, scroll = zoom)
+        touch := TouchArea {
+            pointer-event(e) => {
+                if (e.button == PointerEventButton.left) {
+                    if (e.kind == PointerEventKind.down) {
+                        root.press-x = self.mouse-x;
+                        root.press-y = self.mouse-y;
+                        root.lp-armed = true;
+                    } else if (e.kind == PointerEventKind.up) {
+                        root.lp-armed = false;
+                    }
+                }
+            }
+            changed mouse-x => {
+                root.pointer(self.mouse-x / 1px, self.mouse-y / 1px, self.pressed);
+                if (Math.abs((self.mouse-x - root.press-x) / 1px) > 6 || Math.abs((self.mouse-y - root.press-y) / 1px) > 6) {
+                    root.lp-armed = false;
+                }
+            }
+            changed mouse-y => {
+                root.pointer(self.mouse-x / 1px, self.mouse-y / 1px, self.pressed);
+                if (Math.abs((self.mouse-x - root.press-x) / 1px) > 6 || Math.abs((self.mouse-y - root.press-y) / 1px) > 6) {
+                    root.lp-armed = false;
+                }
+            }
+            double-clicked => {
+                root.double-tap(self.mouse-x / 1px, self.mouse-y / 1px);
+            }
+            scroll-event(e) => {
+                root.zoom(e.delta-y > 0px ? 1 : -1, self.mouse-x / 1px, self.mouse-y / 1px);
+                accept
+            }
+        }
+
+        // koordinat di dekat kursor
+        if touch.has-hover : Rectangle {
+            x: touch.mouse-x + 12px;
+            y: touch.mouse-y - 28px;
+            width: 160px;
+            height: 20px;
+            background: #ffffffcc;
+            border-radius: 3px;
+            Text {
+                text: root.hover-text;
+                color: navy;
+                font-size: 12px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        // lat / lon (seperti latitude_position_value & longitude_position_value)
+        Rectangle {
+            x: 10px;
+            y: 10px;
+            width: 150px;
+            height: 56px;
+            background: #ffffffb0;
+            border-radius: 4px;
+            Text {
+                x: 8px; y: 4px; width: 140px; height: 22px;
+                text: "lat  " + root.lat-text;
+                color: navy; font-size: 14px; font-weight: 700; font-family: "Verdana";
+                vertical-alignment: center;
+            }
+            Text {
+                x: 8px; y: 30px; width: 140px; height: 22px;
+                text: "lon  " + root.lon-text;
+                color: navy; font-size: 14px; font-weight: 700; font-family: "Verdana";
+                vertical-alignment: center;
+            }
+        }
+
+        Button {
+            x: 10px; y: 76px; width: 150px; height: 32px;
+            text: "clear line track";
+            clicked => { root.clear-all(); }
+        }
+
+        Button {
+            x: 10px; y: 114px; width: 150px; height: 32px;
+            text: "pusatkan marker";
+            clicked => { root.center-on-marker(); }
+        }
+
+        Button {
+            x: root.width - 50px; y: 10px; width: 40px; height: 36px;
+            text: "+";
+            clicked => { root.zoom(1, root.width / 2px, root.height / 2px); }
+        }
+
+        Button {
+            x: root.width - 50px; y: 52px; width: 40px; height: 36px;
+            text: "−";
+            clicked => { root.zoom(-1, root.width / 2px, root.height / 2px); }
+        }
+
+        // kompas (klik = kembali ke utara)
+        Rectangle {
+            x: (root.width - 48px) / 2;
+            y: 10px;
+            width: 48px;
+            height: 48px;
+            border-radius: 24px;
+            background: #ffffffd0;
+            border-width: 1px;
+            border-color: #777;
+
+            Rectangle {
+                width: parent.width;
+                height: parent.height;
+                transform-rotation: -root.bearing;
+                Text {
+                    x: 0px; y: 3px; width: 48px; height: 14px;
+                    text: "N";
+                    color: #c62828; font-size: 12px; font-weight: 700;
+                    horizontal-alignment: center;
+                }
+                Rectangle { x: 22px; y: 18px; width: 4px; height: 16px; background: #c62828; }
+                Rectangle { x: 22px; y: 34px; width: 4px; height: 8px;  background: #555; }
+            }
+            TouchArea { clicked => { bslider.value = 0; root.reset-north(); } }
+        }
+
+        // slider bearing peta
+        Rectangle {
+            x: 10px;
+            y: root.height - 88px;
+            width: 300px;
+            height: 78px;
+            background: #ffffffb0;
+            border-radius: 4px;
+
+            Text {
+                x: 12px; y: 6px; width: 280px; height: 22px;
+                text: "Bearing peta: " + Math.round(bslider.value) + "°";
+                color: navy; font-size: 14px; font-weight: 700; font-family: "Verdana";
+                vertical-alignment: center;
+            }
+            bslider := Slider {
+                x: 12px; y: 38px; width: 200px; height: 24px;
+                minimum: 0;
+                maximum: 360;
+                value: 0;
+                changed value => { root.bearing-edited(self.value); }
+            }
+            Button {
+                x: 226px; y: 36px; width: 62px; height: 28px;
+                text: "Utara";
+                clicked => { bslider.value = 0; root.reset-north(); }
+            }
+        }
+
+        // atribusi OSM (wajib)
+        Rectangle {
+            x: root.width - 180px;
+            y: root.height - 18px;
+            width: 180px;
+            height: 18px;
+            background: #ffffffb0;
+            Text {
+                text: "© OpenStreetMap contributors";
+                font-size: 10px;
+                color: #333;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+}

@@ -1,0 +1,29 @@
+import { Slider, Button, VerticalBox } from "std-widgets.slint";
+
+export component MainWindow inherits Window {
+    title: "Slider CSV";
+    preferred-width: 360px;
+
+    in-out property <float> s1: 0;
+    in-out property <float> s2: 0;
+    in-out property <float> s3: 0;
+    in property <string> status;
+    callback simpan();
+
+    VerticalBox {
+        Text { text: "Slider 1: " + Math.round(root.s1); }
+        Slider { minimum: 0; maximum: 100; value <=> root.s1; }
+
+        Text { text: "Slider 2: " + Math.round(root.s2); }
+        Slider { minimum: 0; maximum: 100; value <=> root.s2; }
+
+        Text { text: "Slider 3: " + Math.round(root.s3); }
+        Slider { minimum: 0; maximum: 100; value <=> root.s3; }
+
+        Button {
+            text: "Simpan";
+            clicked => { root.simpan(); }
+        }
+        Text { text: root.status; }
+    }
+}
