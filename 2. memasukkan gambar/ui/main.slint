@@ -1,0 +1,24 @@
+export component MainWindow inherits Window {
+    in property <image> foto;
+
+    //preferred-width: 1000px;
+    //preferred-height: 1000px;
+    width: 300px;
+    height: 300px;
+
+    title: "membuat windows";
+    background: #FF96C5;
+
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: red;
+
+        Image {
+            source: root.foto;
+            width: parent.width;
+            height: parent.height;
+            image-fit: contain;
+        }
+    }
+}

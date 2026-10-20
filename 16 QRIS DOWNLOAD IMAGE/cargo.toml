@@ -1,0 +1,8 @@
+[package]
+name = "qris_download_image"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+reqwest = { version = "0.12", features = ["blocking"] }
+image = "0.25"
